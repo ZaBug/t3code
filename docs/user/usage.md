@@ -116,8 +116,9 @@ using a proxy through `ANTHROPIC_AUTH_TOKEN`.
 
 ## Connect a CLIProxyAPI hub
 
-To see pooled accounts, open **Settings → Providers → Usage providers → Add hub**. Choose the
-environment that will connect to the hub and enter its URL and management key.
+To see pooled accounts, open **Settings → Providers → Usage providers → Add source** and choose
+**CLIProxyAPI hub**. Choose the environment that will connect to the hub and enter its URL and
+management key.
 
 The accounts appear under **Usage → Limits**. Codex accounts show banked reset credits; select an
 account and choose **Use reset** to redeem one. No hub plugin is required.
@@ -136,6 +137,16 @@ On Android, the thread header shows the cost and context use after the project n
 `t3code · Laptop · $1.4 · 32%`. Tap it for the context window, total processed tokens, and thread
 cost. Turn off **Settings → Thread behavior → Show thread cost** to hide the
 cost; context use stays.
+
+## Show a gateway spending budget
+
+If your agents run through an LLM gateway that enforces a spending budget, open **Settings →
+Providers → Usage providers → Add source** and choose **HTTP endpoint**. Enter the URL that
+reports your spend, the auth header it expects (for example `Bearer sk-…`, or `x-api-key: sk-…`
+for a named header), and the dot paths of the used and limit amounts in its JSON response, such
+as `spend` and `budget_table.max_budget`. Choose **Test** to check the mapping before saving.
+
+The budget appears under Claude in **Usage → Limits**, with the amount spent and when it resets.
 
 ## Subscription usage widget
 
