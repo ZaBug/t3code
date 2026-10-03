@@ -1105,3 +1105,48 @@ describe("branch naming settings", () => {
     },
   );
 });
+
+describe("ServerSettings usage limit sources", () => {
+  it("decodes an http source with its default currency and window", () => {
+    const settings = decodeServerSettings({
+      usageLimitSources: {
+        "http-gateway.example.com": {
+          kind: "http",
+          url: "https://gateway.example.com/user/info",
+          fields: { used: "spend", limit: "budget_table.max_budget" },
+        },
+      },
+    });
+    expect(settings.usageLimitSources["http-gateway.example.com" as never]).toEqual({
+      kind: "http",
+      url: "https://gateway.example.com/user/info",
+      authHeader: "",
+      enabled: true,
+      fields: { used: "spend", limit: "budget_table.max_budget" },
+      currency: "USD",
+      windowKind: "monthly",
+    });
+  });
+
+  it("keeps decoding cliproxy hubs as before", () => {
+    const settings = decodeServerSettings({
+      usageLimitSources: { hub: { kind: "cliproxy", url: "http://hub:8317" } },
+    });
+    expect(settings.usageLimitSources["hub" as never]).toEqual({
+      kind: "cliproxy",
+      url: "http://hub:8317",
+      managementKey: "",
+      enabled: true,
+    });
+  });
+
+  it("rejects an http source without a limit mapping", () => {
+    expect(() =>
+      decodeServerSettings({
+        usageLimitSources: {
+          gateway: { kind: "http", url: "https://gateway.example.com", fields: { used: "spend" } },
+        },
+      }),
+    ).toThrow();
+  });
+});

@@ -154,6 +154,20 @@ function usageLimitSourceSecretName(sourceId: string): string {
   return `usage-limit-source-${Buffer.from(sourceId, "utf8").toString("base64url")}`;
 }
 
+/** Each source kind keeps exactly one secret: a hub's key or an endpoint's auth header. */
+function usageLimitSourceSecret(source: UsageLimitSourceConfig): string {
+  return source.kind === "http" ? source.authHeader : source.managementKey;
+}
+
+function withUsageLimitSourceSecret(
+  source: UsageLimitSourceConfig,
+  secret: string,
+): UsageLimitSourceConfig {
+  return source.kind === "http"
+    ? { ...source, authHeader: secret }
+    : { ...source, managementKey: secret };
+}
+
 const BITBUCKET_SECRET_NAMES = {
   accessToken: "bitbucket-access-token",
   apiToken: "bitbucket-api-token",
@@ -188,14 +202,11 @@ export function redactServerSettingsForClient(settings: ServerSettings): ServerS
         : instance,
     ]),
   );
-  // The hub key is a bearer secret; clients only need to know one is set.
+  // Source secrets are bearer credentials; clients only need to know one is set.
   const usageLimitSources = Object.fromEntries(
     Object.entries(settings.usageLimitSources).map(([id, source]) => [
       id,
-      {
-        ...source,
-        managementKey: redactSecret(source.managementKey),
-      },
+      withUsageLimitSourceSecret(source, redactSecret(usageLimitSourceSecret(source))),
     ]),
   );
   const bitbucket = {
@@ -849,7 +860,7 @@ const make = Effect.gen(function* () {
       }
       const usageLimitSources: Record<string, UsageLimitSourceConfig> = {};
       for (const [sourceId, source] of Object.entries(settings.usageLimitSources)) {
-        if (source.managementKey !== SECRET_REDACTED) {
+        if (usageLimitSourceSecret(source) !== SECRET_REDACTED) {
           usageLimitSources[sourceId] = source;
           continue;
         }
@@ -860,10 +871,10 @@ const make = Effect.gen(function* () {
               (cause) => new ServerSettingsError({ settingsPath, operation: "read-secret", cause }),
             ),
           );
-        usageLimitSources[sourceId] = {
-          ...source,
-          managementKey: Option.isSome(secret) ? textDecoder.decode(secret.value) : "",
-        };
+        usageLimitSources[sourceId] = withUsageLimitSourceSecret(
+          source,
+          Option.isSome(secret) ? textDecoder.decode(secret.value) : "",
+        );
       }
       const bitbucket = { ...settings.bitbucket };
       for (const field of BITBUCKET_SECRET_FIELDS) {
@@ -998,11 +1009,12 @@ const make = Effect.gen(function* () {
       const usageLimitSources: Record<string, UsageLimitSourceConfig> = {};
       for (const [sourceId, source] of Object.entries(next.usageLimitSources)) {
         const secretName = usageLimitSourceSecretName(sourceId);
-        if (source.managementKey === SECRET_REDACTED) {
+        const secret = usageLimitSourceSecret(source);
+        if (secret === SECRET_REDACTED) {
           usageLimitSources[sourceId] = source;
           continue;
         }
-        if (source.managementKey.length === 0) {
+        if (secret.length === 0) {
           changes.push({ kind: "remove", secretName, operation: "remove-secret" });
           usageLimitSources[sourceId] = source;
           continue;
@@ -1010,9 +1022,9 @@ const make = Effect.gen(function* () {
         changes.push({
           kind: "write",
           secretName,
-          value: textEncoder.encode(source.managementKey),
+          value: textEncoder.encode(secret),
         });
-        usageLimitSources[sourceId] = { ...source, managementKey: SECRET_REDACTED };
+        usageLimitSources[sourceId] = withUsageLimitSourceSecret(source, SECRET_REDACTED);
       }
       for (const sourceId of Object.keys(current.usageLimitSources)) {
         if (sourceId in next.usageLimitSources) continue;

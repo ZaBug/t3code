@@ -9,6 +9,7 @@ import {
   resolveProviderInstanceEnabled,
   ServerSettings,
   ServerSettingsPatch,
+  UsageLimitSourceId,
 } from "@t3tools/contracts";
 import { createModelSelection } from "@t3tools/shared/model";
 import { assert, it } from "@effect/vitest";
@@ -1454,6 +1455,45 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           "",
         );
       }).pipe(Effect.provide(makeServerSettingsLayerWithSecrets())),
+  );
+
+  it.effect("keeps an HTTP usage source's auth header in the secret store", () =>
+    Effect.gen(function* () {
+      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
+      const serverConfig = yield* ServerConfig.ServerConfig;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const sourceId = UsageLimitSourceId.make("http-gateway.example.com");
+
+      const saved = yield* serverSettings.updateSettings({
+        usageLimitSources: {
+          [sourceId]: {
+            kind: "http",
+            url: "https://gateway.example.com/user/info",
+            authHeader: "Bearer gateway-secret",
+            enabled: true,
+            fields: { used: "spend", limit: "budget_table.max_budget" },
+            currency: "USD",
+            windowKind: "monthly",
+          },
+        },
+      });
+      const source = saved.usageLimitSources[sourceId];
+      assert.equal(source?.kind === "http" ? source.authHeader : null, "Bearer gateway-secret");
+
+      const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
+      assert.notInclude(raw, "gateway-secret");
+      assert.include(raw, "budget_table.max_budget");
+
+      const forClient =
+        ServerSettingsModule.redactServerSettingsForClient(saved).usageLimitSources[sourceId];
+      assert.equal(forClient?.kind, "http");
+      assert.notInclude(forClient?.kind === "http" ? forClient.authHeader : "", "gateway-secret");
+
+      // Echoing the redacted source back keeps the stored header.
+      yield* serverSettings.updateSettings({ usageLimitSources: { [sourceId]: forClient! } });
+      const reloaded = (yield* serverSettings.getSettings).usageLimitSources[sourceId];
+      assert.equal(reloaded?.kind === "http" ? reloaded.authHeader : null, "Bearer gateway-secret");
+    }).pipe(Effect.provide(makeServerSettingsLayerWithSecrets())),
   );
 
   it.effect("removes a Bitbucket secret once its token is cleared by hand in settings.json", () =>

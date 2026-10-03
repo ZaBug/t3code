@@ -969,18 +969,50 @@ export const OpenCodeSettings = makeProviderSettingsSchema(
 export type OpenCodeSettings = typeof OpenCodeSettings.Type;
 
 /**
- * A read-only quota source outside this environment's provider CLIs. The
- * only kind today is a CLIProxyAPI hub, whose management API reports the
- * windows of every pooled account. The key travels in settings for now, like
- * provider environment secrets; it is redacted before reaching a client.
+ * A CLIProxyAPI hub, whose management API reports the windows of every
+ * pooled account. The key travels in settings for now, like provider
+ * environment secrets; it is redacted before reaching a client.
  */
-export const UsageLimitSourceConfig = Schema.Struct({
+export const CliproxyUsageLimitSourceConfig = Schema.Struct({
   kind: Schema.Literal("cliproxy"),
   label: Schema.optional(TrimmedNonEmptyString),
   url: TrimmedNonEmptyString,
   managementKey: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
 });
+export type CliproxyUsageLimitSourceConfig = typeof CliproxyUsageLimitSourceConfig.Type;
+
+/**
+ * Any JSON endpoint that reports a spending budget, such as an LLM gateway's
+ * key or user info. `fields` are dot paths into the response (`budget_table.
+ * max_budget`, `data.0.spend`). `authHeader` is sent as `Authorization`, or
+ * as a named header when written `Name: value`; it is stored and redacted
+ * like a hub's management key.
+ */
+export const HttpUsageLimitSourceConfig = Schema.Struct({
+  kind: Schema.Literal("http"),
+  label: Schema.optional(TrimmedNonEmptyString),
+  url: TrimmedNonEmptyString,
+  authHeader: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  fields: Schema.Struct({
+    used: TrimmedNonEmptyString,
+    limit: TrimmedNonEmptyString,
+    softLimit: Schema.optional(TrimmedNonEmptyString),
+    resetsAt: Schema.optional(TrimmedNonEmptyString),
+  }),
+  currency: TrimmedNonEmptyString.pipe(Schema.withDecodingDefault(Effect.succeed("USD"))),
+  windowKind: Schema.Literals(["session", "weekly", "monthly", "other"]).pipe(
+    Schema.withDecodingDefault(Effect.succeed("monthly" as const)),
+  ),
+});
+export type HttpUsageLimitSourceConfig = typeof HttpUsageLimitSourceConfig.Type;
+
+/** A read-only quota source outside this environment's provider CLIs. */
+export const UsageLimitSourceConfig = Schema.Union([
+  CliproxyUsageLimitSourceConfig,
+  HttpUsageLimitSourceConfig,
+]);
 export type UsageLimitSourceConfig = typeof UsageLimitSourceConfig.Type;
 
 /**
