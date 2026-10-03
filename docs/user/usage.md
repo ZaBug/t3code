@@ -107,8 +107,9 @@ using a proxy through `ANTHROPIC_AUTH_TOKEN`.
 
 ## Connect a CLIProxyAPI hub
 
-To see pooled accounts, open **Settings → Providers → Usage providers → Add hub**. Choose the
-environment that will connect to the hub and enter its URL and management key.
+To see pooled accounts, open **Settings → Providers → Usage providers → Add source** and choose
+**CLIProxyAPI hub**. Choose the environment that will connect to the hub and enter its URL and
+management key.
 
 The accounts appear under **Usage → Limits**. Codex accounts show banked reset credits; select an
 account and choose **Use reset** to redeem one. No hub plugin is required.
@@ -116,6 +117,16 @@ account and choose **Use reset** to redeem one. No hub plugin is required.
 This connection supplies usage information; configure
 the provider separately to send agent requests through the hub. Remove the hub from the same
 settings section when you no longer need it.
+
+## Show a gateway spending budget
+
+If your agents run through an LLM gateway that enforces a spending budget, open **Settings →
+Providers → Usage providers → Add source** and choose **HTTP endpoint**. Enter the URL that
+reports your spend, the auth header it expects (for example `Bearer sk-…`, or `x-api-key: sk-…`
+for a named header), and the dot paths of the used and limit amounts in its JSON response, such
+as `spend` and `budget_table.max_budget`. Choose **Test** to check the mapping before saving.
+
+The budget appears under Claude in **Usage → Limits**, with the amount spent and when it resets.
 
 ## Subscription usage widget
 

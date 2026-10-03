@@ -21,7 +21,7 @@ import { AddUsageLimitSourceDialog } from "./AddUsageLimitSourceDialog";
 import { searchableSetting } from "./settingsSearch";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
 
-/** Hub management follows the selected device and access rules of provider settings. */
+/** Usage source management follows the selected device and access rules of provider settings. */
 export function UsageProviderSettings({
   environmentId,
   environmentLabel,
@@ -71,7 +71,7 @@ export function UsageProviderSettings({
           !readOnly ? (
             <Button size="xs" variant="outline" onClick={() => setAdding(true)}>
               <PlusIcon className="size-3" aria-hidden />
-              Add hub
+              Add source
             </Button>
           ) : null
         }
@@ -92,7 +92,7 @@ export function UsageProviderSettings({
           />
         ) : null}
         {entries.length === 0 ? (
-          <SettingsRow title="No hubs configured." />
+          <SettingsRow title="No usage sources configured." />
         ) : (
           entries.map(([id, source]) => {
             const label = source.label?.trim() || source.url;
@@ -102,7 +102,8 @@ export function UsageProviderSettings({
                 title={label}
                 description={
                   <span className="break-all">
-                    CLI Proxy{source.enabled ? "" : " · Disabled"}
+                    {source.kind === "http" ? "HTTP endpoint" : "CLI Proxy"}
+                    {source.enabled ? "" : " · Disabled"}
                     {label !== source.url ? ` · ${source.url}` : ""}
                   </span>
                 }
@@ -131,7 +132,7 @@ export function UsageProviderSettings({
   );
 }
 
-/** Removing a hub deletes its stored management key, so it requires confirmation. */
+/** Removing a source deletes its stored secret, so it requires confirmation. */
 function RemoveUsageProviderButton({
   label,
   onConfirm,
@@ -150,8 +151,8 @@ function RemoveUsageProviderButton({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {label}?</AlertDialogTitle>
             <AlertDialogDescription>
-              The hub's management key is deleted from this server. Its accounts leave the Limits
-              view; the hub itself is untouched. Add it again with the URL and key to bring them
+              Its stored key or auth header is deleted from this server, and it leaves the Limits
+              view. The source itself is untouched. Add it again with the URL and secret to bring it
               back.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -164,7 +165,7 @@ function RemoveUsageProviderButton({
                 onConfirm();
               }}
             >
-              Remove hub
+              Remove
             </Button>
           </AlertDialogFooter>
         </AlertDialogPopup>
