@@ -14,6 +14,7 @@ import {
   isProviderAvailable,
   type ServerProvider,
   type ServerProviderUsageLimits,
+  type ServerProviderUsageSpend,
   type ServerProviderUsageWindow,
   type UsageLimitSourceSnapshots,
 } from "@t3tools/contracts";
@@ -488,6 +489,42 @@ export function limitsNotice(limits: ServerProviderUsageLimits): string | null {
 /** Quota left in the window, 0..100. Bars and labels show what remains, as Codex does. */
 export function remainingPercent(window: ServerProviderUsageWindow): number {
   return Math.round(100 - Math.max(0, Math.min(100, window.usedPercent)));
+}
+
+/**
+ * `$42.50`: an amount in the currency's own precision. A currency code Intl
+ * does not know falls back to `42.50 USD`.
+ */
+export function formatMoney(amount: number, currency: string, fractionDigits = 2): string {
+  const digits = Math.min(fractionDigits, 20);
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(amount);
+  } catch {
+    return `${amount.toFixed(digits)} ${currency}`;
+  }
+}
+
+/** `$42.50 of $1,000.00`: a spending budget in its own currency and precision. */
+export function formatSpend(spend: ServerProviderUsageSpend): string {
+  const scale = 10 ** spend.exponent;
+  const format = (minor: number) => formatMoney(minor / scale, spend.currency, spend.exponent);
+  return `${format(spend.usedMinor)} of ${format(spend.limitMinor)}`;
+}
+
+/**
+ * The amount a pooled card can state: its budget when exactly one account
+ * reports it. Pools average account percentages, so a summed amount could
+ * contradict the pooled percent.
+ */
+export function singleAccountSpend(
+  members: readonly LimitPoolMember[],
+): ServerProviderUsageSpend | null {
+  return members.length === 1 ? (members[0]!.window.spend ?? null) : null;
 }
 
 function resetMillis(window: ServerProviderUsageWindow): number | null {
