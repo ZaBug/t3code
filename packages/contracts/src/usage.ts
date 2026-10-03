@@ -221,3 +221,27 @@ export class UsageReadError extends Schema.TaggedError<UsageReadError>()("UsageR
     return `Usage read failed (${this.reason}): ${this.detail}`;
   }
 }
+
+/**
+ * Token totals to price at this environment's rates, one entry per model,
+ * e.g. a thread's turns that carry no provider-reported cost.
+ */
+export const UsageCostEstimateInput = Schema.Struct({
+  entries: Schema.Array(
+    Schema.Struct({
+      model: TrimmedNonEmptyString,
+      totals: UsageTokenTotals,
+    }),
+  ),
+});
+export type UsageCostEstimateInput = typeof UsageCostEstimateInput.Type;
+
+/**
+ * The API-equivalent cost of the entries at the LiteLLM table and the user's
+ * `usagePriceOverrides`. Models with no known rate add nothing and are named.
+ */
+export const UsageCostEstimate = Schema.Struct({
+  costUsd: Schema.Number,
+  unpricedModels: Schema.Array(TrimmedNonEmptyString),
+});
+export type UsageCostEstimate = typeof UsageCostEstimate.Type;

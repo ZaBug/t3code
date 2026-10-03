@@ -7,7 +7,12 @@
  *
  * @module usagePricing
  */
-import type { UsageCostSource, UsageModelPriceOverride } from "@t3tools/contracts";
+import type {
+  UsageCostEstimate,
+  UsageCostEstimateInput,
+  UsageCostSource,
+  UsageModelPriceOverride,
+} from "@t3tools/contracts";
 
 import type { UsageRecord } from "./usageTranscripts.ts";
 
@@ -243,4 +248,28 @@ export function cacheSavingsUsd(
     (rate.inputCostPerToken - rate.cacheReadCostPerToken) *
     (record.fast ? rate.fastMultiplier : 1)
   );
+}
+
+/**
+ * Prices token totals the caller already has, one entry per model. Overrides
+ * win over the table as everywhere else; models with no rate contribute
+ * nothing and are listed so the caller can say the figure is partial.
+ */
+export function estimateCost(
+  table: RateTable,
+  entries: UsageCostEstimateInput["entries"],
+  overrides?: RateTable,
+): UsageCostEstimate {
+  let costUsd = 0;
+  const unpricedModels = new Set<string>();
+  for (const entry of entries) {
+    const priced = priceUsage(
+      table,
+      { model: entry.model, totals: entry.totals, fast: false, reportedCostUsd: null },
+      overrides,
+    );
+    if (priced.costSource === "unpriced") unpricedModels.add(entry.model);
+    else costUsd += priced.costUsd;
+  }
+  return { costUsd, unpricedModels: [...unpricedModels] };
 }

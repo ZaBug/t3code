@@ -21,6 +21,8 @@ import {
   ProviderInstanceId,
   USAGE_CONTRACT_VERSION,
   type ServerSettings as ServerSettingsValue,
+  type UsageCostEstimate,
+  type UsageCostEstimateInput,
   type UsageProviderKind,
   type UsageSource,
   type UsagePricing,
@@ -54,7 +56,12 @@ import { readOpenCodeUsage } from "./opencodeUsageReader.ts";
 import { readAntigravityUsage } from "./antigravityUsageReader.ts";
 import { readCursorAccountUsage } from "./cursorUsageReader.ts";
 import { UsageAggregator } from "./usageAggregation.ts";
-import { createOverrideRateTable, parseRateTable, type RateTable } from "./usagePricing.ts";
+import {
+  createOverrideRateTable,
+  estimateCost as estimateTokenCost,
+  parseRateTable,
+  type RateTable,
+} from "./usagePricing.ts";
 import {
   listTranscriptFiles,
   readDirectoryVolumeId,
@@ -119,6 +126,8 @@ export class UsageService extends Context.Service<
     readonly readSummary: (input: UsageSummaryInput) => Effect.Effect<UsageSummary, UsageReadError>;
     /** Refetches the rate table ahead of its TTL. See `ensureRates`. */
     readonly refreshRates: Effect.Effect<UsagePricing>;
+    /** Prices token totals at the current rates; never fails, unknown models are listed. */
+    readonly estimateCost: (input: UsageCostEstimateInput) => Effect.Effect<UsageCostEstimate>;
   }
 >()("t3/usage/UsageService") {}
 
@@ -146,6 +155,11 @@ const layerTest = Layer.succeed(
         scanDurationMs: 0,
       }),
     refreshRates: Effect.succeed(EMPTY_PRICING),
+    estimateCost: (input) =>
+      Effect.succeed({
+        costUsd: 0,
+        unpricedModels: [...new Set(input.entries.map((entry) => entry.model))],
+      }),
   }),
 );
 
@@ -892,7 +906,20 @@ export const make = Effect.gen(function* () {
     return yield* Deferred.await(deferred);
   });
 
-  return { readSummary, refreshRates } as const;
+  // The thread view asks often; it shares the cached table and only loads it when missing.
+  const estimateCost = Effect.fn("UsageService.estimateCost")(function* (
+    input: UsageCostEstimateInput,
+  ) {
+    yield* ensureRates(false);
+    const settings = yield* settingsService.getSettings.pipe(Effect.option);
+    const overrides = Option.match(settings, {
+      onNone: () => undefined,
+      onSome: (value) => createOverrideRateTable(value.usagePriceOverrides),
+    });
+    return estimateTokenCost(rates, input.entries, overrides);
+  });
+
+  return { readSummary, refreshRates, estimateCost } as const;
 });
 
 export const layer = Layer.effect(UsageService, make);

@@ -1116,6 +1116,10 @@ export function createServerEnvironmentAtoms<R, E>(
           ),
         ),
     }),
+    estimateUsageCost: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:estimate-usage-cost",
+      tag: WS_METHODS.serverEstimateUsageCost,
+    }),
     consumeResetCredit: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:consume-reset-credit",
       tag: WS_METHODS.providerConsumeResetCredit,

@@ -4,6 +4,7 @@ import { cursorRateModel } from "./cursorUsageReader.ts";
 import {
   cacheSavingsUsd,
   createOverrideRateTable,
+  estimateCost,
   lookupRate,
   parseRateTable,
   priceUsage,
@@ -178,5 +179,44 @@ describe("usage pricing", () => {
     expect(lookupRate(table, "provider-a/example-model")?.inputCostPerToken).toBe(1);
     expect(lookupRate(table, "provider-b/example-model")?.inputCostPerToken).toBe(3);
     expect(lookupRate(table, "example-model")).toBeNull();
+  });
+});
+
+describe("estimateCost", () => {
+  const totals = (input: number, output: number) => ({
+    uncachedInputTokens: input,
+    cachedInputTokens: 0,
+    cacheCreationTokens: 0,
+    outputTokens: output,
+    reasoningTokens: 0,
+  });
+
+  it("sums priced entries and names the models it could not price", () => {
+    const table = parseRateTable({ "example-model": rate(1e-6) });
+    expect(
+      estimateCost(table, [
+        { model: "example-model", totals: totals(1_000_000, 100_000) },
+        { model: "mystery-model", totals: totals(5, 5) },
+        { model: "mystery-model", totals: totals(5, 5) },
+      ]),
+    ).toEqual({ costUsd: 1.5, unpricedModels: ["mystery-model"] });
+  });
+
+  it("applies the user's price overrides like the Usage page", () => {
+    const overrides = createOverrideRateTable({
+      "gateway-model": {
+        inputCostPerMillionTokens: 2,
+        outputCostPerMillionTokens: 8,
+        cacheReadCostPerMillionTokens: 0,
+        cacheWriteCostPerMillionTokens: 0,
+      },
+    });
+    expect(
+      estimateCost(
+        new Map(),
+        [{ model: "gateway-model", totals: totals(1_000_000, 1_000_000) }],
+        overrides,
+      ),
+    ).toEqual({ costUsd: 10, unpricedModels: [] });
   });
 });

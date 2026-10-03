@@ -2573,6 +2573,10 @@ const makeWsRpcLayer = (
           observeRpcEffect(WS_METHODS.serverRefreshUsageRates, usage.refreshRates, {
             "rpc.aggregate": "server",
           }),
+        [WS_METHODS.serverEstimateUsageCost]: (input) =>
+          observeRpcEffect(WS_METHODS.serverEstimateUsageCost, usage.estimateCost(input), {
+            "rpc.aggregate": "server",
+          }),
         [WS_METHODS.serverRetryResourceTelemetry]: (_input) =>
           observeRpcEffect(WS_METHODS.serverRetryResourceTelemetry, resourceTelemetry.retry, {
             "rpc.aggregate": "server",

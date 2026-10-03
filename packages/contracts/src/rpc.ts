@@ -301,7 +301,14 @@ import {
   ProviderConsumeResetCreditResult,
   UsageLimitSourceTestResult,
 } from "./providerUsageLimits.ts";
-import { UsagePricing, UsageReadError, UsageSummary, UsageSummaryInput } from "./usage.ts";
+import {
+  UsageCostEstimate,
+  UsageCostEstimateInput,
+  UsagePricing,
+  UsageReadError,
+  UsageSummary,
+  UsageSummaryInput,
+} from "./usage.ts";
 import {
   HttpUsageLimitSourceConfig,
   ServerSettings,
@@ -472,6 +479,7 @@ export const WS_METHODS = {
   serverGetBackgroundPolicy: "server.getBackgroundPolicy",
   serverGetUsageSummary: "server.getUsageSummary",
   serverRefreshUsageRates: "server.refreshUsageRates",
+  serverEstimateUsageCost: "server.estimateUsageCost",
 
   // Scheduled tasks
   scheduledTasksList: "scheduledTasks.list",
@@ -855,6 +863,13 @@ const WsServerGetUsageSummaryRpc = Rpc.make(WS_METHODS.serverGetUsageSummary, {
 const WsServerRefreshUsageRatesRpc = Rpc.make(WS_METHODS.serverRefreshUsageRates, {
   payload: Schema.Struct({}),
   success: UsagePricing,
+  error: EnvironmentAuthorizationError,
+});
+
+/** Prices token totals the client already has, such as one thread's turns. */
+const WsServerEstimateUsageCostRpc = Rpc.make(WS_METHODS.serverEstimateUsageCost, {
+  payload: UsageCostEstimateInput,
+  success: UsageCostEstimate,
   error: EnvironmentAuthorizationError,
 });
 
@@ -1743,6 +1758,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerRetryResourceTelemetryRpc,
   WsServerGetUsageSummaryRpc,
   WsServerRefreshUsageRatesRpc,
+  WsServerEstimateUsageCostRpc,
   WsServerSignalProcessRpc,
   WsScheduledTasksListRpc,
   WsScheduledTasksSubscribeRpc,
