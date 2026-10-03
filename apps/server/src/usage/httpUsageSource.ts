@@ -156,6 +156,52 @@ export function authHeaderEntry(authHeader: string): readonly [string, string] |
   return ["Authorization", authHeader];
 }
 
+/** Reason phrases for the statuses gateways actually answer with. */
+const STATUS_TEXT: Record<number, string> = {
+  400: "Bad Request",
+  401: "Unauthorized",
+  403: "Forbidden",
+  404: "Not Found",
+  405: "Method Not Allowed",
+  408: "Request Timeout",
+  429: "Too Many Requests",
+  500: "Internal Server Error",
+  502: "Bad Gateway",
+  503: "Service Unavailable",
+  504: "Gateway Timeout",
+};
+
+/**
+ * `HTTP 403 Forbidden — check the auth header`: the status and what to fix,
+ * never the response body, which can echo the credential back.
+ */
+export function httpStatusDetail(status: number): string {
+  const text = STATUS_TEXT[status];
+  const hint =
+    status === 401 || status === 403
+      ? " — check the auth header"
+      : status === 404
+        ? " — check the URL"
+        : "";
+  return `HTTP ${status}${text ? ` ${text}` : ""}${hint}`;
+}
+
+/**
+ * Why a request never got a response: the innermost cause, which is where
+ * fetch keeps the DNS, connection, or TLS error (`fetch failed` alone says
+ * nothing). Messages name the host at most, never headers.
+ */
+export function requestFailureDetail(reason: unknown): string {
+  let message: string | undefined;
+  let current: unknown = reason;
+  for (let depth = 0; typeof current === "object" && current !== null && depth < 5; depth++) {
+    const cause: unknown = (current as { cause?: unknown }).cause;
+    if (cause instanceof Error && cause.message) message = cause.message;
+    current = cause;
+  }
+  return message ? `Could not reach the source: ${message}` : "Could not reach the source.";
+}
+
 export const makeHttpUsageSource = Effect.gen(function* () {
   const client = yield* HttpClient.HttpClient;
 
@@ -176,14 +222,12 @@ export const makeHttpUsageSource = Effect.gen(function* () {
       header ? HttpClientRequest.setHeader(header[0], header[1]) : (request) => request,
     );
     const body = yield* client.execute(request).pipe(
-      Effect.mapError(() => new UsageLimitSourceError({ detail: "The source request failed." })),
+      Effect.mapError(
+        (error) => new UsageLimitSourceError({ detail: requestFailureDetail(error.reason) }),
+      ),
       Effect.flatMap((response) =>
         response.status < 200 || response.status >= 300
-          ? Effect.fail(
-              new UsageLimitSourceError({
-                detail: `The source answered HTTP ${response.status}.`,
-              }),
-            )
+          ? Effect.fail(new UsageLimitSourceError({ detail: httpStatusDetail(response.status) }))
           : response.json.pipe(
               Effect.mapError(
                 () => new UsageLimitSourceError({ detail: "The source did not return JSON." }),

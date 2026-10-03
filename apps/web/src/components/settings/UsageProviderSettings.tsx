@@ -42,8 +42,14 @@ export function UsageProviderSettings({
   const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders, {
     reportFailure: false,
   });
-  const platform = useAtomValue(serverEnvironment.configValueAtom(environmentId))?.environment
-    .platform;
+  const config = useAtomValue(serverEnvironment.configValueAtom(environmentId));
+  const platform = config?.environment.platform;
+  // The published read of each source, so a failing one says why where it is configured.
+  const sourceErrors = new Map(
+    (config?.usageLimitSources ?? []).flatMap((snapshot) =>
+      snapshot.error ? [[String(snapshot.id), snapshot.error] as const] : [],
+    ),
+  );
   const [adding, setAdding] = useState(false);
   const [updatingCursor, setUpdatingCursor] = useState(false);
   const entries = Object.entries(sources);
@@ -96,6 +102,7 @@ export function UsageProviderSettings({
         ) : (
           entries.map(([id, source]) => {
             const label = source.label?.trim() || source.url;
+            const error = source.enabled ? sourceErrors.get(id) : undefined;
             return (
               <SettingsRow
                 key={id}
@@ -105,6 +112,7 @@ export function UsageProviderSettings({
                     {source.kind === "http" ? "HTTP endpoint" : "CLI Proxy"}
                     {source.enabled ? "" : " · Disabled"}
                     {label !== source.url ? ` · ${source.url}` : ""}
+                    {error ? <span className="block text-destructive">{error}</span> : null}
                   </span>
                 }
                 control={

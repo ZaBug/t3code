@@ -2,13 +2,15 @@ import { describe, expect, it } from "@effect/vitest";
 import type { HttpUsageLimitSourceConfig } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
-import { HttpClient, HttpClientResponse } from "effect/unstable/http";
+import { HttpClient, HttpClientError, HttpClientResponse } from "effect/unstable/http";
 
 import {
   authHeaderEntry,
+  httpStatusDetail,
   httpUsageAccount,
   makeHttpUsageSource,
   parseHttpUsage,
+  requestFailureDetail,
   resolveJsonPath,
 } from "./httpUsageSource.ts";
 
@@ -188,7 +190,7 @@ describe("HTTP usage source", () => {
       const test = fixture(() => Response.json({ token: "do-not-publish" }, { status: 401 }));
       const source = yield* test.source;
       const error = yield* source.read(config).pipe(Effect.flip);
-      expect(error.detail).toBe("The source answered HTTP 401.");
+      expect(error.detail).toBe("HTTP 401 Unauthorized — check the auth header");
     }),
   );
 
@@ -217,6 +219,48 @@ describe("HTTP usage source", () => {
       const error = yield* source.read({ ...config, url: "file:///etc/passwd" }).pipe(Effect.flip);
       expect(error.detail).toBe("The source URL is not valid.");
       expect(test.requests).toHaveLength(0);
+    }),
+  );
+});
+
+describe("failure details", () => {
+  it("names the status and what to check", () => {
+    expect(httpStatusDetail(403)).toBe("HTTP 403 Forbidden — check the auth header");
+    expect(httpStatusDetail(404)).toBe("HTTP 404 Not Found — check the URL");
+    expect(httpStatusDetail(502)).toBe("HTTP 502 Bad Gateway");
+    expect(httpStatusDetail(599)).toBe("HTTP 599");
+  });
+
+  it("reports the innermost network cause rather than fetch's generic message", () => {
+    const reason = {
+      cause: new TypeError("fetch failed", { cause: new Error("self-signed certificate") }),
+    };
+    expect(requestFailureDetail(reason)).toBe(
+      "Could not reach the source: self-signed certificate",
+    );
+    expect(requestFailureDetail({})).toBe("Could not reach the source.");
+  });
+
+  it.effect("surfaces a transport failure through the reader", () =>
+    Effect.gen(function* () {
+      const http = HttpClient.make((request) =>
+        Effect.fail(
+          new HttpClientError.HttpClientError({
+            reason: new HttpClientError.TransportError({
+              request,
+              cause: new TypeError("fetch failed", {
+                cause: new Error("getaddrinfo ENOTFOUND gateway.test"),
+              }),
+            }),
+          }),
+        ),
+      );
+      const source = yield* makeHttpUsageSource.pipe(
+        Effect.provideService(HttpClient.HttpClient, http),
+      );
+      const error = yield* source.read(config).pipe(Effect.flip);
+      expect(error.detail).toBe("Could not reach the source: getaddrinfo ENOTFOUND gateway.test");
+      expect(error.detail).not.toContain("gateway-secret");
     }),
   );
 });

@@ -4,6 +4,7 @@ import {
   type UsageLimitSourceTestResult,
   UsageLimitSourceId,
 } from "@t3tools/contracts";
+import * as Cause from "effect/Cause";
 import { formatMoney } from "@t3tools/shared/usageLimits";
 import { useState } from "react";
 
@@ -74,6 +75,11 @@ function describeTestResult(result: UsageLimitSourceTestResult): string {
   ]
     .filter((part) => part !== null)
     .join(" · ");
+}
+
+/** The server's reason (`HTTP 403 Forbidden — check the auth header`), not a generic line. */
+function failureMessage(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : "Could not read the endpoint.";
 }
 
 /**
@@ -162,10 +168,7 @@ export function AddUsageLimitSourceDialog({
         ? { ok: true, text: describeTestResult(result.value) }
         : {
             ok: false,
-            text:
-              "error" in result.cause && result.cause.error instanceof Error
-                ? result.cause.error.message
-                : "Could not read the endpoint.",
+            text: failureMessage(Cause.squash(result.cause)),
           },
     );
   };
