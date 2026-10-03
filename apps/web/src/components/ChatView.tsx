@@ -466,6 +466,7 @@ import {
   shouldOfferResumeCompaction,
 } from "./chat/ContextWindowMeter.logic";
 import { deriveLatestContextWindowSnapshot, formatContextWindowTokens } from "../lib/contextWindow";
+import { useThreadCost } from "./chat/useThreadCost";
 import {
   DRAFT_HERO_TRANSITION_ANIMATION_ID,
   DRAFT_HERO_TRANSITION_EASING,
@@ -670,6 +671,11 @@ const PreviewPanel = lazy(() =>
 const DiffPanel = lazy(() => import("./DiffPanel"));
 const selectAutoShowFloatingPreview = (settings: { browserAutoShowFloatingPreview: boolean }) =>
   settings.browserAutoShowFloatingPreview;
+/** Thread cost lives in the context window popover, so it needs the meter on too. */
+const selectThreadCostVisible = (settings: {
+  contextWindowMeterEnabled: boolean;
+  threadCostEnabled: boolean;
+}) => settings.contextWindowMeterEnabled && settings.threadCostEnabled;
 const DevicePanel = lazy(() =>
   import("./device/DevicePanel").then((module) => ({ default: module.DevicePanel })),
 );
@@ -3462,6 +3468,12 @@ export default function ChatView(props: ChatViewProps) {
       ),
     [activeThreadLiveTokenUsage, serverVisibleTurnItems, serverProjection],
   );
+  const threadCostVisible = useClientSettings(selectThreadCostVisible);
+  const activeThreadCost = useThreadCost({
+    environmentId: activeThreadRef?.environmentId ?? null,
+    projection: serverProjection,
+    enabled: threadCostVisible,
+  });
   const pendingBackgroundTasks = useMemo(() => {
     if (serverProjection === null || serverProjection === undefined) {
       return [];
@@ -10923,6 +10935,7 @@ export default function ChatView(props: ChatViewProps) {
                               }
                               activeThreadModelSelection={activeThread?.modelSelection}
                               activeContextWindow={activeContextWindow}
+                              activeThreadCost={activeThreadCost}
                               activeTasksProgress={activeComposerTasksProgress}
                               activeTaskSteps={activeComposerTaskSteps}
                               compactThreadUnavailable={compactThreadUnavailable}

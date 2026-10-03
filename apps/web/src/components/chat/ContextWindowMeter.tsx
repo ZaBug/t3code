@@ -7,6 +7,20 @@ import {
 } from "./ContextWindowMeter.logic";
 import { Minimize2Icon } from "lucide-react";
 import { composerFloatingLayerProps } from "./composerEventScope";
+import { formatThreadCost, type ThreadCost } from "~/lib/threadCost";
+import { getDriverOption } from "../settings/providerDriverMeta";
+
+/** `reported by Claude`, `estimate`: where the thread cost came from, in a few words. */
+function threadCostSourceLabel(cost: ThreadCost): string {
+  const by = cost.reportedBy ? (getDriverOption(cost.reportedBy)?.label ?? "provider") : "provider";
+  const label =
+    cost.source === "provider"
+      ? `reported by ${by}`
+      : cost.source === "estimate"
+        ? "estimate"
+        : `reported by ${by} + estimate`;
+  return cost.partial ? `${label}, some models unpriced` : label;
+}
 
 function formatPercentage(value: number | null): string | null {
   if (value === null || !Number.isFinite(value)) {
@@ -24,8 +38,10 @@ export function ContextWindowMeter(props: {
   onCompact?: (() => void) | undefined;
   compactDisabled?: boolean | undefined;
   compactDisabledReason?: string | null | undefined;
+  threadCost?: ThreadCost | null | undefined;
 }) {
-  const { usage, modelDisplayName, onCompact, compactDisabled, compactDisabledReason } = props;
+  const { usage, modelDisplayName, onCompact, compactDisabled, compactDisabledReason, threadCost } =
+    props;
   const usedPercentage = formatPercentage(usage.usedPercentage);
   const normalizedPercentage = Math.max(0, Math.min(100, usage.usedPercentage ?? 0));
   const radius = 9.75;
@@ -133,6 +149,17 @@ export function ContextWindowMeter(props: {
               <span className="text-secondary-label">Total processed</span>
               <span className="font-medium tabular-nums text-secondary-label">
                 {formatContextWindowTokens(totalProcessedTokens)}
+              </span>
+            </div>
+          ) : null}
+          {threadCost ? (
+            <div className="flex items-center justify-between gap-3 text-2xs leading-4">
+              <span className="text-secondary-label">
+                Thread cost{" "}
+                <span className="opacity-70">({threadCostSourceLabel(threadCost)})</span>
+              </span>
+              <span className="font-medium tabular-nums text-secondary-label">
+                {formatThreadCost(threadCost.amountUsd)}
               </span>
             </div>
           ) : null}

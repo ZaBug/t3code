@@ -511,6 +511,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["composer meter usage tokens circle old"],
   },
   {
+    id: "thread-cost",
+    title: "Show thread cost",
+    to: "/settings/general",
+    searchTerms: ["price money spend dollars estimate context window popover"],
+  },
+  {
     id: "legacy-sidebar",
     title: "Sidebar (legacy)",
     to: "/settings/general",
