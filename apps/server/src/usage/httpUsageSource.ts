@@ -143,11 +143,17 @@ export function httpUsageAccount(input: {
   };
 }
 
-/** `Name: value` sends a named header; anything else is the `Authorization` value. */
+/**
+ * `Name: value` sends a named header. A bare token, with no scheme or colon,
+ * is sent as `Authorization: Bearer <token>`, since that is what gateways
+ * expect and what users paste most. Anything else is the `Authorization` value.
+ */
 export function authHeaderEntry(authHeader: string): readonly [string, string] | null {
   if (authHeader.length === 0) return null;
   const named = /^([!#$%&'*+.^_`|~0-9A-Za-z-]+):\s*(.+)$/.exec(authHeader);
-  return named ? [named[1]!, named[2]!] : ["Authorization", authHeader];
+  if (named) return [named[1]!, named[2]!];
+  if (!/[\s:]/.test(authHeader)) return ["Authorization", `Bearer ${authHeader}`];
+  return ["Authorization", authHeader];
 }
 
 export const makeHttpUsageSource = Effect.gen(function* () {

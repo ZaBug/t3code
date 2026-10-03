@@ -149,10 +149,15 @@ describe("httpUsageAccount", () => {
 });
 
 describe("authHeaderEntry", () => {
-  it("sends a bare value as Authorization and a named header as written", () => {
+  it("sends a value with a scheme as Authorization and a named header as written", () => {
     expect(authHeaderEntry("Bearer sk-1:2")).toEqual(["Authorization", "Bearer sk-1:2"]);
+    expect(authHeaderEntry("Basic dXNlcjpwYXNz")).toEqual(["Authorization", "Basic dXNlcjpwYXNz"]);
     expect(authHeaderEntry("x-api-key: sk-1")).toEqual(["x-api-key", "sk-1"]);
     expect(authHeaderEntry("")).toBeNull();
+  });
+
+  it("sends a bare token as a Bearer token", () => {
+    expect(authHeaderEntry("sk-abc123")).toEqual(["Authorization", "Bearer sk-abc123"]);
   });
 });
 
@@ -165,6 +170,15 @@ describe("HTTP usage source", () => {
       expect(reading.usedPercent).toBe(4.25);
       expect(test.requests).toHaveLength(1);
       expect(test.requests[0]?.url).toBe(config.url);
+      expect(test.requests[0]?.headers.authorization).toBe("Bearer gateway-secret");
+    }),
+  );
+
+  it.effect("adds the Bearer scheme to a saved bare token", () =>
+    Effect.gen(function* () {
+      const test = fixture();
+      const source = yield* test.source;
+      yield* source.read({ ...config, authHeader: "gateway-secret" });
       expect(test.requests[0]?.headers.authorization).toBe("Bearer gateway-secret");
     }),
   );
