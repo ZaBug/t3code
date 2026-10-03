@@ -10,12 +10,28 @@ import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
 import { UsageLimitSourceId } from "./usageLimitSourceId.ts";
 
 /**
+ * A budget stated in money rather than quota, e.g. an LLM gateway's monthly
+ * spending limit. Amounts are minor units with the currency's own `exponent`
+ * (`4250` at exponent 2 is 42.50) so nothing is rounded on the way to the
+ * screen.
+ */
+export const ServerProviderUsageSpend = Schema.Struct({
+  usedMinor: NonNegativeInt,
+  limitMinor: NonNegativeInt,
+  /** ISO 4217 code, `USD`. */
+  currency: TrimmedNonEmptyString,
+  exponent: NonNegativeInt,
+});
+export type ServerProviderUsageSpend = typeof ServerProviderUsageSpend.Type;
+
+/**
  * One rolling quota window a subscription provider reports for the signed-in
  * account, e.g. Claude's five-hour session or Codex's weekly allowance.
  *
  * `id` is stable per provider (`five_hour`, `seven_day_opus`, `primary`) so a
  * sparse turn-driven update lands on the same row a full probe produced.
- * `kind` only orders and labels the bar.
+ * `kind` only orders and labels the bar. `spend` is present when the window
+ * is a spending budget, so clients can show the amounts behind the percent.
  */
 export const ServerProviderUsageWindow = Schema.Struct({
   id: TrimmedNonEmptyString,
@@ -24,6 +40,7 @@ export const ServerProviderUsageWindow = Schema.Struct({
   usedPercent: Schema.Number.check(Schema.isBetween({ minimum: 0, maximum: 100 })),
   resetsAt: Schema.optional(IsoDateTime),
   windowDurationMins: Schema.optional(NonNegativeInt),
+  spend: Schema.optional(ServerProviderUsageSpend),
 });
 export type ServerProviderUsageWindow = typeof ServerProviderUsageWindow.Type;
 
@@ -103,7 +120,7 @@ export type UsageLimitSourceAccount = typeof UsageLimitSourceAccount.Type;
  */
 export const UsageLimitSourceSnapshot = Schema.Struct({
   id: UsageLimitSourceId,
-  kind: Schema.Literal("cliproxy"),
+  kind: Schema.Literals(["cliproxy", "http"]),
   label: TrimmedNonEmptyString,
   checkedAt: IsoDateTime,
   accounts: ForwardCompatibleArray(UsageLimitSourceAccount),
@@ -113,6 +130,20 @@ export type UsageLimitSourceSnapshot = typeof UsageLimitSourceSnapshot.Type;
 
 export const UsageLimitSourceSnapshots = ForwardCompatibleArray(UsageLimitSourceSnapshot);
 export type UsageLimitSourceSnapshots = typeof UsageLimitSourceSnapshots.Type;
+
+/**
+ * What one read of an `http` source parsed, before it is saved, so the user
+ * can check the field mapping. Amounts are in the configured currency.
+ */
+export const UsageLimitSourceTestResult = Schema.Struct({
+  used: Schema.Number,
+  limit: Schema.Number,
+  softLimit: Schema.optional(Schema.Number),
+  currency: TrimmedNonEmptyString,
+  usedPercent: Schema.Number,
+  resetsAt: Schema.optional(IsoDateTime),
+});
+export type UsageLimitSourceTestResult = typeof UsageLimitSourceTestResult.Type;
 
 export const UsageLimitSourceConsumeResetCreditInput = Schema.Struct({
   sourceId: UsageLimitSourceId,

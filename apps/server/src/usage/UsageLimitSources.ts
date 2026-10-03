@@ -77,6 +77,9 @@ export const make = Effect.gen(function* () {
   ) {
     const checkedAt = DateTime.formatIso(yield* DateTime.now);
     const base = { id, kind: config.kind, label: sourceLabel(id, config), checkedAt } as const;
+    if (config.kind !== "cliproxy") {
+      return { ...base, accounts: [], error: "This build cannot read this source kind yet." };
+    }
     if (config.managementKey.length === 0) {
       return { ...base, accounts: [], error: "No management key configured." };
     }
@@ -124,7 +127,7 @@ export const make = Effect.gen(function* () {
         ),
       );
       const config = settings.usageLimitSources[input.sourceId];
-      if (!config?.enabled || !config.managementKey) {
+      if (!config?.enabled || config.kind !== "cliproxy" || !config.managementKey) {
         return yield* new UsageLimitSourceError({
           detail: "The usage limit source is missing or disabled.",
         });
