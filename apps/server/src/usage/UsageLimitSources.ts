@@ -1,6 +1,7 @@
 /**
  * UsageLimitSources — quota from places this environment cannot run turns
- * on, today a CLIProxyAPI hub pooling several subscription accounts.
+ * on: a CLIProxyAPI hub pooling several subscription accounts, or any JSON
+ * endpoint reporting a spending budget, such as an LLM gateway.
  *
  * Each configured `settings.usageLimitSources` entry is polled on the
  * provider health-check interval and on every settings change, then
@@ -14,12 +15,14 @@
 import {
   DEFAULT_PROVIDER_HEALTH_REFRESH_INTERVAL,
   UsageLimitSourceError,
+  type HttpUsageLimitSourceConfig,
   type UsageLimitSourceConsumeResetCreditInput,
   type ProviderConsumeResetCreditResult,
   type ServerSettings,
   type UsageLimitSourceConfig,
   type UsageLimitSourceId,
   type UsageLimitSourceSnapshot,
+  type UsageLimitSourceTestResult,
 } from "@t3tools/contracts";
 import { resolveServerBackgroundActivitySettings } from "@t3tools/shared/backgroundActivitySettings";
 import * as Context from "effect/Context";
@@ -36,6 +39,7 @@ import * as Stream from "effect/Stream";
 import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import * as Settings from "../serverSettings.ts";
 import { makeCliproxyApi } from "./cliproxyApi.ts";
+import { httpUsageAccount, makeHttpUsageSource } from "./httpUsageSource.ts";
 
 export class UsageLimitSources extends Context.Service<
   UsageLimitSources,
@@ -48,6 +52,10 @@ export class UsageLimitSources extends Context.Service<
     readonly consumeResetCredit: (
       input: UsageLimitSourceConsumeResetCreditInput,
     ) => Effect.Effect<ProviderConsumeResetCreditResult, UsageLimitSourceError>;
+    /** Read an `http` source once without saving it, so a mapping can be checked. */
+    readonly test: (
+      config: HttpUsageLimitSourceConfig,
+    ) => Effect.Effect<UsageLimitSourceTestResult, UsageLimitSourceError>;
   }
 >()("t3/usage/UsageLimitSources") {}
 
@@ -63,6 +71,7 @@ function sourceLabel(id: string, config: UsageLimitSourceConfig): string {
 /** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const api = yield* makeCliproxyApi;
+  const http = yield* makeHttpUsageSource;
   const settingsService = yield* Settings.ServerSettingsService;
   const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
   const stateRef = yield* Ref.make<ReadonlyArray<UsageLimitSourceSnapshot>>([]);
@@ -77,8 +86,24 @@ export const make = Effect.gen(function* () {
   ) {
     const checkedAt = DateTime.formatIso(yield* DateTime.now);
     const base = { id, kind: config.kind, label: sourceLabel(id, config), checkedAt } as const;
-    if (config.kind !== "cliproxy") {
-      return { ...base, accounts: [], error: "This build cannot read this source kind yet." };
+    if (config.kind === "http") {
+      const reading = yield* http.read(config).pipe(Effect.result);
+      if (reading._tag === "Failure") {
+        yield* Effect.logDebug("usage limit source read failed", { id, cause: reading.failure });
+        return { ...base, accounts: [], error: reading.failure.detail };
+      }
+      return {
+        ...base,
+        accounts: [
+          httpUsageAccount({
+            sourceId: id,
+            label: base.label,
+            config,
+            reading: reading.success,
+            checkedAt,
+          }),
+        ],
+      };
     }
     if (config.managementKey.length === 0) {
       return { ...base, accounts: [], error: "No management key configured." };
@@ -171,6 +196,7 @@ export const make = Effect.gen(function* () {
     current: Ref.get(stateRef),
     consumeResetCredit,
     refresh,
+    test: http.read,
     get streamChanges() {
       return Stream.unwrap(
         Effect.gen(function* () {
