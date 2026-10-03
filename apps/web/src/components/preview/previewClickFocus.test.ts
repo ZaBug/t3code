@@ -49,6 +49,30 @@ describe("runPreviewClickKeepingHostFocus", () => {
     expect(document.activeElement).toBe(composer);
   });
 
+  it("gives focus back once overlapping clicks in two tabs finish", async () => {
+    const composer = mount("textarea");
+    const first = mount("webview", TAB);
+    const second = mount("webview", "other-tab");
+    composer.focus();
+    let finishSecond = () => {};
+
+    const firstClick = runPreviewClickKeepingHostFocus(TAB, async () => {
+      first.focus();
+    });
+    // Starts while the first click holds focus in its page, and finishes last.
+    const secondClick = runPreviewClickKeepingHostFocus("other-tab", async () => {
+      second.focus();
+      await new Promise<void>((resolve) => {
+        finishSecond = resolve;
+      });
+    });
+    await firstClick;
+    finishSecond();
+    await secondClick;
+
+    expect(document.activeElement).toBe(composer);
+  });
+
   it("leaves no focus in the page when nothing in the app had focus", async () => {
     const webview = mount("webview", TAB);
 
