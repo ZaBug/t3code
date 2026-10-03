@@ -78,6 +78,8 @@ function makeTestLayer(state: {
   remoteInvalidationCalls: number;
   remoteStatusRefreshUpstreamValues?: Array<boolean | undefined>;
   backgroundWorkEnabled?: boolean;
+  /** Runs before each remote status read, e.g. to hold a fetch open. */
+  beforeRemoteStatus?: Effect.Effect<void>;
 }) {
   return VcsStatusBroadcaster.layer.pipe(
     Layer.provideMerge(NodeServices.layer),
@@ -90,11 +92,15 @@ function makeTestLayer(state: {
             return state.currentLocalStatus;
           }),
         remoteStatus: (_input, options) =>
-          Effect.sync(() => {
-            state.remoteStatusCalls += 1;
-            state.remoteStatusRefreshUpstreamValues?.push(options?.refreshUpstream);
-            return state.currentRemoteStatus;
-          }),
+          Effect.suspend(() => state.beforeRemoteStatus ?? Effect.void).pipe(
+            Effect.andThen(
+              Effect.sync(() => {
+                state.remoteStatusCalls += 1;
+                state.remoteStatusRefreshUpstreamValues?.push(options?.refreshUpstream);
+                return state.currentRemoteStatus;
+              }),
+            ),
+          ),
         invalidateLocalStatus: () =>
           Effect.sync(() => {
             state.localInvalidationCalls += 1;
@@ -896,6 +902,39 @@ describe("VcsStatusBroadcaster", () => {
       } satisfies VcsStatusStreamEvent);
       yield* Scope.close(scope, Exit.void);
     }).pipe(Effect.provide(Layer.merge(makeTestLayer(state), TestClock.layer())));
+  });
+
+  it.effect("an explicit refresh reads local totals after the fetch", () => {
+    const state: Parameters<typeof makeTestLayer>[0] = {
+      currentLocalStatus: baseLocalStatus,
+      currentRemoteStatus: baseRemoteStatus,
+      localStatusCalls: 0,
+      remoteStatusCalls: 0,
+      localInvalidationCalls: 0,
+      remoteInvalidationCalls: 0,
+    };
+
+    return Effect.gen(function* () {
+      const broadcaster = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
+      const fetchStarted = yield* Deferred.make<void>();
+      const finishFetch = yield* Deferred.make<void>();
+      state.beforeRemoteStatus = Deferred.succeed(fetchStarted, undefined).pipe(
+        Effect.andThen(Deferred.await(finishFetch)),
+      );
+      const refresh = yield* broadcaster.refreshStatus("/repo").pipe(Effect.forkScoped);
+      yield* Deferred.await(fetchStarted);
+
+      // The fetch moves the base while it runs, so totals read before it ends would be stale.
+      const fetchedLocal: VcsStatusLocalResult = {
+        ...baseLocalStatus,
+        branchChanges: { baseRef: "origin/main", insertions: 0, deletions: 0 },
+      };
+      state.currentLocalStatus = fetchedLocal;
+      yield* Deferred.succeed(finishFetch, undefined);
+
+      const status = yield* Fiber.join(refresh);
+      assert.deepStrictEqual(status.branchChanges, fetchedLocal.branchChanges);
+    }).pipe(Effect.provide(makeTestLayer(state)));
   });
 
   it("backs off remote refresh failures exponentially and honors larger configured intervals", () => {

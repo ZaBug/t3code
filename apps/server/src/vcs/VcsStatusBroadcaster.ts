@@ -493,10 +493,9 @@ export const make = Effect.gen(function* () {
       cwd,
       Effect.gen(function* () {
         yield* workflow.invalidateStatus(cwd);
-        const [local, remote] = yield* Effect.all(
-          [workflow.localStatus({ cwd }), workflow.remoteStatus({ cwd })],
-          { concurrency: "unbounded" },
-        );
+        // Local after remote: the fetch can move the base that the Changes totals compare with.
+        const remote = yield* workflow.remoteStatus({ cwd });
+        const local = yield* workflow.localStatus({ cwd });
         const pulled = yield* maybeAutoPull(cwd, remote, [rawCwd]);
         if (pulled !== null) return mergeGitStatusParts(pulled.local, pulled.remote);
         return yield* updateCachedStatus(cwd, local, remote, { publish: true });
