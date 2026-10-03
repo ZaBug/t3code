@@ -1121,13 +1121,21 @@ describe("remainingPercent", () => {
 });
 
 describe("formatSpend", () => {
-  it("states a budget in its currency and precision", () => {
-    expect(formatSpend({ usedMinor: 4250, limitMinor: 100000, currency: "USD", exponent: 2 })).toBe(
-      "$42.50 of $1,000.00",
-    );
+  const budget = { usedMinor: 27548, limitMinor: 150000, currency: "USD", exponent: 2 };
+
+  it("states what is left by default, matching the percent left", () => {
+    expect(formatSpend(budget)).toBe("$1,224.52 left of $1,500.00");
     expect(formatSpend({ usedMinor: 500, limitMinor: 2000, currency: "JPY", exponent: 0 })).toBe(
-      "¥500 of ¥2,000",
+      "¥1,500 left of ¥2,000",
     );
+  });
+
+  it("states what is spent when limits show usage", () => {
+    expect(formatSpend(budget, "used")).toBe("$275.48 spent of $1,500.00");
+  });
+
+  it("never reports a negative amount left once the budget is overspent", () => {
+    expect(formatSpend({ ...budget, usedMinor: 160000 })).toBe("$0.00 left of $1,500.00");
   });
 
   it("falls back to the code for a currency Intl does not know", () => {

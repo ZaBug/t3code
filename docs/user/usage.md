@@ -127,7 +127,7 @@ reports your spend and the auth header it expects (a bare token is sent as `Bear
 `spend` and `budget_table.max_budget`; change them for other gateways. Choose **Test** to check
 the mapping before saving.
 
-The budget appears under Claude in **Usage → Limits**, with the amount spent and when it resets.
+The budget appears under Claude in **Usage → Limits**, with the amount left and when it resets.
 
 ## Subscription usage widget
 
