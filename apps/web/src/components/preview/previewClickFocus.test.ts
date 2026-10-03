@@ -117,6 +117,20 @@ describe("runPreviewClickKeepingHostFocus", () => {
     expect(document.activeElement).toBe(stuck);
   });
 
+  it("leaves no focus in the page when the composer can no longer take focus", async () => {
+    const composer = mount("div");
+    const webview = mount("webview", TAB);
+    composer.focus();
+
+    await runPreviewClickKeepingHostFocus(TAB, async () => {
+      webview.focus();
+      // Like the editor going read-only for an approval request.
+      composer.removeAttribute("tabindex");
+    });
+
+    expect(document.activeElement).toBe(document.body);
+  });
+
   it("leaves no focus in the page when nothing in the app had focus", async () => {
     const webview = mount("webview", TAB);
 

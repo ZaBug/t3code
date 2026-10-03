@@ -22,9 +22,10 @@ const restoreHostFocus = ({ runtimeTabId, previous }: PreviewClick): void => {
   }
   if (previous instanceof HTMLElement && previous.isConnected && previous !== document.body) {
     previous.focus({ preventScroll: true });
-  } else {
-    current.blur();
   }
+  // The previous element may no longer take focus, like a composer that was
+  // disabled during the click. Never leave focus in the page.
+  if (document.activeElement === current) current.blur();
 };
 
 /**
