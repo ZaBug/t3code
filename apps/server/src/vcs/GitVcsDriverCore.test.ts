@@ -1858,6 +1858,34 @@ it.layer(TestLayer)("GitVcsDriver core integration", (it) => {
       }),
     );
 
+    it.effect("Changes compares with the empty tree before the first commit", () =>
+      Effect.gen(function* () {
+        const upstream = yield* makeTmpDir();
+        yield* initRepoWithCommit(upstream);
+        yield* git(upstream, ["branch", "-M", "main"]);
+        const cwd = yield* makeTmpDir();
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        // An unborn main whose remote copy exists must not fail on merge-base.
+        yield* git(cwd, ["init", "-b", "main"]);
+        yield* git(cwd, ["remote", "add", "origin", upstream]);
+        yield* git(cwd, ["fetch", "origin"]);
+        yield* writeTextFile(cwd, "new.txt", "one\ntwo\n");
+
+        const preview = yield* driver.getReviewDiffPreview({ cwd });
+        const changes = preview.sources.find((source) => source.kind === "branch-range")!;
+        assert.isNull(changes.baseRef);
+        assert.deepStrictEqual(changes.files, [
+          { path: "new.txt", previousPath: null, additions: 2, deletions: 0 },
+        ]);
+        const status = yield* driver.statusDetailsLocal(cwd, { includeBranchChanges: true });
+        assert.deepStrictEqual(status.branchChanges, {
+          baseRef: null,
+          insertions: 2,
+          deletions: 0,
+        });
+      }),
+    );
+
     it.effect("Changes does not show newer base commits as deletions", () =>
       Effect.gen(function* () {
         const cwd = yield* makeTmpDir();

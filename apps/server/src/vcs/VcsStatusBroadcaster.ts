@@ -462,9 +462,20 @@ export const make = Effect.gen(function* () {
         if (options?.refreshUpstream !== false) {
           yield* workflow.invalidateRemoteStatus(cwd);
         }
+        const previousRemote = (yield* getCachedStatus(cwd))?.remote?.value;
         const remote = yield* workflow.remoteStatus({ cwd }, options);
         const pulled = yield* maybeAutoPull(cwd, remote, options?.policyCwds ?? [cwd]);
         if (pulled !== null) return pulled.remote;
+        // Local status holds the Changes totals, which compare against remote refs. A push from
+        // a terminal moves ahead/behind without any local trigger, so re-read local status then.
+        if (
+          previousRemote &&
+          remote &&
+          (previousRemote.aheadCount !== remote.aheadCount ||
+            previousRemote.behindCount !== remote.behindCount)
+        ) {
+          yield* refreshLocalStatusCore(cwd);
+        }
         return yield* updateCachedRemoteStatus(cwd, remote, { publish: true });
       }),
     );
