@@ -1,0 +1,70 @@
+// @vitest-environment jsdom
+
+import { afterEach, describe, expect, it } from "vite-plus/test";
+
+import { runPreviewClickKeepingHostFocus } from "./previewClickFocus";
+
+const TAB = "runtime-tab";
+
+const mount = (tagName: string, previewTab?: string) => {
+  const element = document.createElement(tagName);
+  element.tabIndex = -1;
+  if (previewTab) element.setAttribute("data-preview-tab", previewTab);
+  document.body.append(element);
+  return element;
+};
+
+afterEach(() => {
+  document.body.replaceChildren();
+});
+
+describe("runPreviewClickKeepingHostFocus", () => {
+  it("gives focus back to the composer after the click focuses the page", async () => {
+    const composer = mount("textarea");
+    const webview = mount("webview", TAB);
+    composer.focus();
+
+    const result = await runPreviewClickKeepingHostFocus(TAB, async () => {
+      webview.focus();
+      return "clicked";
+    });
+
+    expect(result).toBe("clicked");
+    expect(document.activeElement).toBe(composer);
+  });
+
+  it("gives focus back when the user's typing interrupts the click", async () => {
+    const composer = mount("textarea");
+    const webview = mount("webview", TAB);
+    composer.focus();
+    const interrupted = new Error("PreviewAutomationControlInterruptedError");
+
+    await expect(
+      runPreviewClickKeepingHostFocus(TAB, async () => {
+        webview.focus();
+        throw interrupted;
+      }),
+    ).rejects.toBe(interrupted);
+
+    expect(document.activeElement).toBe(composer);
+  });
+
+  it("leaves no focus in the page when nothing in the app had focus", async () => {
+    const webview = mount("webview", TAB);
+
+    await runPreviewClickKeepingHostFocus(TAB, async () => {
+      webview.focus();
+    });
+
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("keeps focus in the page when the user was already typing there", async () => {
+    const webview = mount("webview", TAB);
+    webview.focus();
+
+    await runPreviewClickKeepingHostFocus(TAB, async () => undefined);
+
+    expect(document.activeElement).toBe(webview);
+  });
+});
