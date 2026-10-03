@@ -7,11 +7,13 @@ import {
   cursorUsageWindowDetails,
   displayLimitWindows,
   formatResetsIn,
+  formatSpend,
   type LimitAccount,
   type LimitPool,
   type LimitPoolMember,
   type LimitPoolWindow,
   remainingPercent,
+  singleAccountSpend,
 } from "@t3tools/shared/usageLimits";
 import { AlertTriangleIcon, ExternalLinkIcon, TicketIcon } from "lucide-react";
 import { Fragment, type ReactNode, useState } from "react";
@@ -187,6 +189,7 @@ function SegmentPopover({
       </div>
       <div className="flex flex-col gap-1 border-t border-border/60 pt-2.5">
         <Row label="Left">{remaining}%</Row>
+        {window.spend ? <Row label="Spent">{formatSpend(window.spend)}</Row> : null}
         {window.resetsAt ? (
           <Row label="Resets">
             {formatUpcomingTimestamp(window.resetsAt, timestampFormat, now)}
@@ -503,6 +506,7 @@ function PoolWindowCard({
 }) {
   // The soonest reset that hands anything back; an untouched account resets to no effect.
   const nextRefill = pool.resets.find((reset) => reset.restoresPercent > 0);
+  const spend = singleAccountSpend(pool.members);
   return (
     <div className="grid items-center gap-x-6 gap-y-3 rounded-lg border border-border/60 p-4 md:grid-cols-[11rem_minmax(0,1fr)]">
       <div className="flex flex-col gap-1">
@@ -514,6 +518,9 @@ function PoolWindowCard({
           <span className="text-sm text-muted-foreground">left</span>
           {pool.pace ? <PaceIcon pace={pool.pace} /> : null}
         </span>
+        {spend ? (
+          <span className="text-xs text-muted-foreground tabular-nums">{formatSpend(spend)}</span>
+        ) : null}
         {nextRefill && pool.columns.length > 1 ? (
           <span className="text-xs font-medium text-foreground tabular-nums">
             ↻ +{nextRefill.restoresPercent}%

@@ -14,6 +14,7 @@ import {
   isProviderAvailable,
   type ServerProvider,
   type ServerProviderUsageLimits,
+  type ServerProviderUsageSpend,
   type ServerProviderUsageWindow,
   type UsageLimitSourceSnapshots,
 } from "@t3tools/contracts";
@@ -506,6 +507,24 @@ export function formatMoney(amount: number, currency: string, fractionDigits = 2
   } catch {
     return `${amount.toFixed(digits)} ${currency}`;
   }
+}
+
+/** `$42.50 of $1,000.00`: a spending budget in its own currency and precision. */
+export function formatSpend(spend: ServerProviderUsageSpend): string {
+  const scale = 10 ** spend.exponent;
+  const format = (minor: number) => formatMoney(minor / scale, spend.currency, spend.exponent);
+  return `${format(spend.usedMinor)} of ${format(spend.limitMinor)}`;
+}
+
+/**
+ * The amount a pooled card can state: its budget when exactly one account
+ * reports it. Pools average account percentages, so a summed amount could
+ * contradict the pooled percent.
+ */
+export function singleAccountSpend(
+  members: readonly LimitPoolMember[],
+): ServerProviderUsageSpend | null {
+  return members.length === 1 ? (members[0]!.window.spend ?? null) : null;
 }
 
 function resetMillis(window: ServerProviderUsageWindow): number | null {

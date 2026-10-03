@@ -19,7 +19,9 @@ import {
   collectLimitPools,
   displayLimitWindows,
   elapsedShare,
+  formatMoney,
   formatResetsIn,
+  formatSpend,
   limitsNotice,
   paceOf,
   providersWithLimits,
@@ -1115,6 +1117,21 @@ describe("remainingPercent", () => {
     expect(remainingPercent({ ...window, usedPercent: 0 })).toBe(100);
     expect(remainingPercent({ ...window, usedPercent: 100 })).toBe(0);
     expect(remainingPercent({ ...window, usedPercent: 33.4 })).toBe(67);
+  });
+});
+
+describe("formatSpend", () => {
+  it("states a budget in its currency and precision", () => {
+    expect(formatSpend({ usedMinor: 4250, limitMinor: 100000, currency: "USD", exponent: 2 })).toBe(
+      "$42.50 of $1,000.00",
+    );
+    expect(formatSpend({ usedMinor: 500, limitMinor: 2000, currency: "JPY", exponent: 0 })).toBe(
+      "¥500 of ¥2,000",
+    );
+  });
+
+  it("falls back to the code for a currency Intl does not know", () => {
+    expect(formatMoney(42.5, "CREDITS")).toBe("42.50 CREDITS");
   });
 });
 
