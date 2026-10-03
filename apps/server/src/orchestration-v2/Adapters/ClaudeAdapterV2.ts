@@ -7,7 +7,12 @@ import {
   formatSearchToolLabel,
 } from "@t3tools/shared/toolActivity";
 import { isWorkspaceImagePreviewPath } from "@t3tools/shared/filePreview";
-import { normalizeClaudeTurnTokenUsage } from "../../provider/ClaudeTurnTokenUsage.ts";
+import {
+  claudeTurnReportedCost,
+  initialClaudeReportedCost,
+  normalizeClaudeTurnTokenUsage,
+  type ClaudeReportedCostState,
+} from "../../provider/ClaudeTurnTokenUsage.ts";
 import {
   type CanUseTool,
   forkSession as forkClaudeSession,
@@ -2682,6 +2687,8 @@ interface ClaudeLiveQueryContext {
   promptEchoMode: "unknown" | "acknowledged" | "early" | "result_only";
   // Stop, rollback or fork is closing this process; its work is ending.
   stopping: boolean;
+  // This process's running `total_cost_usd`, turned into per-turn shares.
+  reportedCost: ClaudeReportedCostState;
   // Registry entries still running when this process opened. Their process
   // is gone and never reports their end; any later task_started replaces the
   // entry, so an entry still in this set runs nowhere.
@@ -4717,6 +4724,7 @@ export function makeClaudeAdapterV2(
           readonly failure?: OrchestrationV2ProviderFailure;
           readonly threadDisposition?: "reusable" | "broken";
           readonly result?: SDKResultMessage;
+          readonly reportedCostUsd?: number;
         }) {
           yield* reasoningDeltas.flushTurn(input.context.nativeTurnId);
           for (const toolCall of input.context.toolCalls.values()) {
@@ -4862,6 +4870,9 @@ export function makeClaudeAdapterV2(
                       input.context.subagentsByToolUseId.size > 0,
                     input.status,
                   ),
+                  ...(input.reportedCostUsd === undefined
+                    ? {}
+                    : { reportedCostUsd: input.reportedCostUsd }),
                 },
               }),
               // Surface this native thread's roster before the root turn
@@ -6260,11 +6271,16 @@ export function makeClaudeAdapterV2(
               resultFailure?.class === "usage_limit"
                 ? { ...resultFailure, resetAt }
                 : resultFailure;
+            const reported = claudeTurnReportedCost(liveQuery.reportedCost, message);
+            liveQuery.reportedCost = reported.state;
             yield* finalizeActiveTurn({
               context,
               status: interrupted ? "interrupted" : terminalStatusFromResult(message, failureHint),
               completedAt,
               result: message,
+              ...(reported.turnCostUsd === undefined
+                ? {}
+                : { reportedCostUsd: reported.turnCostUsd }),
               ...(terminalFailure === null ? {} : { failure: terminalFailure }),
             });
           }
@@ -6946,6 +6962,7 @@ export function makeClaudeAdapterV2(
             closed,
             promptEchoMode: "unknown",
             stopping: false,
+            reportedCost: initialClaudeReportedCost,
             subagentsFromEarlierProcesses: new Set(
               [...(yield* Ref.get(sessionSubagentsByTaskId)).values()].filter(
                 (subagent) => subagent.task.status === "running",

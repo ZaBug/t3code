@@ -1929,6 +1929,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     readonly apiErrorStatus?: number;
     // null omits the field, as the CLI does on a zero-turn result.
     readonly terminalReason?: SDKResultMessage["terminal_reason"] | null;
+    readonly totalCostUsd?: number;
   }) =>
     claudeSdkFrame({
       type: "result",
@@ -1939,7 +1940,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       num_turns: input.numTurns ?? 1,
       result: input.result,
       stop_reason: "end_turn",
-      total_cost_usd: 0,
+      total_cost_usd: input.totalCostUsd ?? 0,
       usage: {
         input_tokens: 1,
         output_tokens: 1,
@@ -2769,6 +2770,45 @@ describe("ClaudeAdapterV2 background wake turns", () => {
           });
         }
       }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, IdAllocator.layer))),
+  );
+
+  it.effect("records each turn's share of the process's running cost", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeWakeHarness;
+      const now = yield* DateTime.now;
+      const runTurn = Effect.fnUntraced(function* (
+        attempt: string,
+        uuid: string,
+        totalCostUsd: number,
+      ) {
+        yield* harness.runtime.startTurn(
+          makeClaudeTestTurnInput({
+            threadId: harness.threadId,
+            providerThread: harness.providerThread,
+            now,
+            attemptId: RunAttemptId.make(attempt),
+            text: "Go",
+            attachments: [],
+          }),
+        );
+        yield* Queue.offer(
+          harness.sdkMessages,
+          makeResultFrame({ uuid, result: "Done.", totalCostUsd }),
+        );
+        yield* Queue.take(harness.terminalReceipts);
+      });
+      yield* runTurn("attempt-cost-1", "00000000-0000-4000-8000-000000000401", 0.25);
+      yield* runTurn("attempt-cost-2", "00000000-0000-4000-8000-000000000402", 0.4);
+
+      const costs = harness.events.flatMap((event) =>
+        event.type === "provider_turn.updated" && event.providerTurn.reportedCostUsd !== undefined
+          ? [event.providerTurn.reportedCostUsd]
+          : [],
+      );
+      assert.lengthOf(costs, 2);
+      assert.closeTo(costs[0]!, 0.25, 1e-9);
+      assert.closeTo(costs[1]!, 0.15, 1e-9);
+    }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, IdAllocator.layer))),
   );
 
   it.effect("titles Claude reads, searches, and skills on tool completion", () =>

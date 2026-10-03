@@ -85,3 +85,44 @@ export function normalizeClaudeTurnTokenUsage(
     ...(rawOutputTokens !== undefined ? { outputTokens: rawOutputTokens } : {}),
   };
 }
+
+/**
+ * The running cost one Claude CLI process has reported. `total_cost_usd` on
+ * each result is cumulative for the process's query, starts fresh when a
+ * session is resumed in a new process, and drops back on `/clear` or a crash
+ * result carrying zeroes. One state per process, never shared.
+ */
+export interface ClaudeReportedCostState {
+  readonly totalUsd: number;
+  readonly lastResultUuid: string | null;
+  readonly lastTurnCostUsd: number;
+}
+
+export const initialClaudeReportedCost: ClaudeReportedCostState = {
+  totalUsd: 0,
+  lastResultUuid: null,
+  lastTurnCostUsd: 0,
+};
+
+/**
+ * One result's share of the running total: the increase since the previous
+ * result, or the whole total when it went down (a reset). The same result
+ * seen twice keeps its first share, so a replayed result cannot zero a turn.
+ */
+export function claudeTurnReportedCost(
+  state: ClaudeReportedCostState,
+  result: { readonly uuid: string; readonly total_cost_usd?: unknown },
+): { readonly state: ClaudeReportedCostState; readonly turnCostUsd: number | undefined } {
+  if (result.uuid === state.lastResultUuid) {
+    return { state, turnCostUsd: state.lastTurnCostUsd };
+  }
+  const total = result.total_cost_usd;
+  if (typeof total !== "number" || !Number.isFinite(total) || total < 0) {
+    return { state, turnCostUsd: undefined };
+  }
+  const turnCostUsd = total >= state.totalUsd ? total - state.totalUsd : total;
+  return {
+    state: { totalUsd: total, lastResultUuid: result.uuid, lastTurnCostUsd: turnCostUsd },
+    turnCostUsd,
+  };
+}

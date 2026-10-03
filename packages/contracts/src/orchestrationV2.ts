@@ -932,6 +932,12 @@ export const OrchestrationV2ProviderTurn = Schema.Struct({
   completedAt: Schema.NullOr(Schema.DateTimeUtc),
   tokenUsage: Schema.optional(OrchestrationV2ProviderTurnTokenUsage),
   turnTokenUsage: Schema.optional(TurnTokenUsage),
+  /**
+   * What this turn cost in USD by the provider's own estimate, including
+   * subagents. Providers report a running total per process; this is the
+   * turn's share of it, so summing a thread's turns never counts twice.
+   */
+  reportedCostUsd: Schema.optional(Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))),
 });
 export type OrchestrationV2ProviderTurn = typeof OrchestrationV2ProviderTurn.Type;
 
