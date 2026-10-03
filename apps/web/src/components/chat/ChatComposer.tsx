@@ -1118,6 +1118,7 @@ import {
 } from "@t3tools/client-runtime/state/composer-dispatch";
 import type { ContextWindowSnapshot } from "@t3tools/client-runtime/context-window";
 import type { ThreadCost } from "@t3tools/client-runtime/thread-cost";
+import type { ThreadBudget } from "../../lib/threadBudget";
 import {
   formatProviderSkillDisplayName,
   getProviderSlashCommandsForSlashMenu,
@@ -1352,6 +1353,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
   activeThreadCost: ThreadCost | null;
   reserveContextWindowMeter: boolean;
   showThreadCostBadge: boolean;
+  activeThreadBudget: ThreadBudget | null;
   activeThreadModelDisplayName: string | null;
   isPreparingWorktree: boolean;
   pendingAction: {
@@ -1390,6 +1392,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         <ContextWindowMeter
           usage={props.activeContextWindow}
           threadCost={props.activeThreadCost}
+          budget={props.activeThreadBudget}
           showCostBadge={props.showThreadCostBadge && !props.compact}
           modelDisplayName={props.activeThreadModelDisplayName}
           onCompact={props.onCompactContext}
@@ -1591,6 +1594,7 @@ export interface ChatComposerProps {
   // Context window
   activeContextWindow: ContextWindowSnapshot | null;
   activeThreadCost: ThreadCost | null;
+  activeThreadBudget: ThreadBudget | null;
   compactThreadUnavailable: boolean;
   compactDisabled: boolean;
   compactDisabledReason: string | null;
@@ -1738,6 +1742,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     reportedModelSelection,
     activeContextWindow,
     activeThreadCost,
+    activeThreadBudget,
     compactThreadUnavailable,
     compactDisabled,
     compactDisabledReason,
@@ -7479,6 +7484,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     }
                     reserveContextWindowMeter={reserveContextWindowMeter}
                     activeThreadCost={activeThreadCost}
+                    activeThreadBudget={activeThreadBudget}
                     showThreadCostBadge={
                       settings.threadCostEnabled && settings.threadCostBadgeEnabled
                     }

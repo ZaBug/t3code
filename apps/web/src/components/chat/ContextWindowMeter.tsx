@@ -18,6 +18,7 @@ import {
   type ThreadCost,
 } from "@t3tools/client-runtime/thread-cost";
 import { getDriverOption } from "../settings/providerDriverMeta";
+import type { ThreadBudget } from "~/lib/threadBudget";
 
 const driverLabel = (driver: Parameters<typeof getDriverOption>[0]) =>
   getDriverOption(driver)?.label;
@@ -31,6 +32,8 @@ export function ContextWindowMeter(props: {
   threadCost?: ThreadCost | null | undefined;
   /** Show the thread cost and context percent as text beside the ring. */
   showCostBadge?: boolean | undefined;
+  /** An HTTP usage source's spending budget, when one is configured. */
+  budget?: ThreadBudget | null | undefined;
 }) {
   const { usage, modelDisplayName, onCompact, compactDisabled, compactDisabledReason, threadCost } =
     props;
@@ -162,6 +165,14 @@ export function ContextWindowMeter(props: {
               </span>
               <span className="font-medium tabular-nums text-secondary-label">
                 {formatThreadCost(threadCost.amountUsd)}
+              </span>
+            </div>
+          ) : null}
+          {props.budget ? (
+            <div className="flex items-center justify-between gap-3 text-2xs leading-4">
+              <span className="text-secondary-label">{props.budget.label}</span>
+              <span className="font-medium tabular-nums text-secondary-label">
+                {props.budget.amount}
               </span>
             </div>
           ) : null}
