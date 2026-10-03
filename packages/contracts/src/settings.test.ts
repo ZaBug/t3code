@@ -657,6 +657,14 @@ describe("ClientSettings context window meter", () => {
   });
 });
 
+describe("ClientSettings thread cost", () => {
+  it("shows the thread cost by default wherever the meter is on", () => {
+    expect(decodeClientSettings({}).threadCostEnabled).toBe(true);
+    expect(decodeClientSettings({ threadCostEnabled: false }).threadCostEnabled).toBe(false);
+    expect(decodeClientSettingsPatch({ threadCostEnabled: false }).threadCostEnabled).toBe(false);
+  });
+});
+
 describe("ClientSettings send shortcut", () => {
   it("defaults to Enter and validates the supported choices", () => {
     expect(decodeClientSettings({}).sendShortcut).toBe("enter");

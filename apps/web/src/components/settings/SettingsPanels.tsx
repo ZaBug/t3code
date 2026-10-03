@@ -618,6 +618,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       ...(settings.contextWindowMeterEnabled !== DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled
         ? ["Context window indicator"]
         : []),
+      ...(settings.threadCostEnabled !== DEFAULT_UNIFIED_SETTINGS.threadCostEnabled
+        ? ["Thread cost"]
+        : []),
       ...(settings.responseStreamingMode !== DEFAULT_UNIFIED_SETTINGS.responseStreamingMode
         ? ["Response streaming"]
         : []),
@@ -688,6 +691,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.proactivePanelsEnabled,
       settings.environmentIdentificationMode,
       settings.contextWindowMeterEnabled,
+      settings.threadCostEnabled,
       settings.fontFamilyCode,
       settings.fontFamilyComposer,
       settings.fontFamilySans,
@@ -802,6 +806,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       contextWindowMeterEnabled: DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled,
+      threadCostEnabled: DEFAULT_UNIFIED_SETTINGS.threadCostEnabled,
       environmentIdentificationMode: DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       panelAnimationDurationMs: DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs,
@@ -2143,6 +2148,21 @@ function LegacyFeaturesSection() {
                 />
               }
             />
+            {settings.contextWindowMeterEnabled ? (
+              <SettingsRow
+                {...searchableSetting("thread-cost")}
+                description="Shows what the thread has cost so far in the context window popover: the provider's own figure when it reports one, otherwise an estimate at Usage prices."
+                control={
+                  <Switch
+                    checked={settings.threadCostEnabled}
+                    onCheckedChange={(checked) =>
+                      updateSettings({ threadCostEnabled: Boolean(checked) })
+                    }
+                    aria-label="Show thread cost"
+                  />
+                }
+              />
+            ) : null}
             <SettingsRow
               {...searchableSetting("legacy-sidebar")}
               description="Restore per-project thread trees instead of the default flat sidebar."
