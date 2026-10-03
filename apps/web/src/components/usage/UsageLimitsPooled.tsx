@@ -189,7 +189,7 @@ function SegmentPopover({
       </div>
       <div className="flex flex-col gap-1 border-t border-border/60 pt-2.5">
         <Row label="Left">{remaining}%</Row>
-        {window.spend ? <Row label="Spent">{formatSpend(window.spend)}</Row> : null}
+        {window.spend ? <Row label="Budget">{formatSpend(window.spend)}</Row> : null}
         {window.resetsAt ? (
           <Row label="Resets">
             {formatUpcomingTimestamp(window.resetsAt, timestampFormat, now)}

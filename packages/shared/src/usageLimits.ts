@@ -509,11 +509,21 @@ export function formatMoney(amount: number, currency: string, fractionDigits = 2
   }
 }
 
-/** `$42.50 of $1,000.00`: a spending budget in its own currency and precision. */
-export function formatSpend(spend: ServerProviderUsageSpend): string {
+/**
+ * A spending budget in its own currency and precision, in the same direction
+ * as the percent beside it: `$957.50 left of $1,000.00` next to "% left",
+ * `$42.50 spent of $1,000.00` next to "% used". Limits show what remains.
+ */
+export function formatSpend(
+  spend: ServerProviderUsageSpend,
+  mode: "remaining" | "used" = "remaining",
+): string {
   const scale = 10 ** spend.exponent;
   const format = (minor: number) => formatMoney(minor / scale, spend.currency, spend.exponent);
-  return `${format(spend.usedMinor)} of ${format(spend.limitMinor)}`;
+  const limit = format(spend.limitMinor);
+  return mode === "used"
+    ? `${format(spend.usedMinor)} spent of ${limit}`
+    : `${format(Math.max(0, spend.limitMinor - spend.usedMinor))} left of ${limit}`;
 }
 
 /**
