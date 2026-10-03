@@ -28,6 +28,14 @@ import { Toggle, ToggleGroup } from "../ui/toggle-group";
 type SourceKind = "cliproxy" | "http";
 type WindowKind = HttpUsageLimitSourceConfig["windowKind"];
 
+/** LiteLLM's `/user/info` and `/key/info` shape, the most common gateway; editable per source. */
+const LITELLM_FIELDS = {
+  used: "spend",
+  limit: "budget_table.max_budget",
+  softLimit: "budget_table.soft_budget",
+  resetsAt: "budget_table.budget_reset_at",
+} as const;
+
 const WINDOW_KINDS: Record<WindowKind, string> = {
   monthly: "Monthly",
   weekly: "Weekly",
@@ -94,10 +102,10 @@ export function AddUsageLimitSourceDialog({
   const [url, setUrl] = useState("");
   const [managementKey, setManagementKey] = useState("");
   const [authHeader, setAuthHeader] = useState("");
-  const [usedField, setUsedField] = useState("");
-  const [limitField, setLimitField] = useState("");
-  const [softLimitField, setSoftLimitField] = useState("");
-  const [resetsAtField, setResetsAtField] = useState("");
+  const [usedField, setUsedField] = useState<string>(LITELLM_FIELDS.used);
+  const [limitField, setLimitField] = useState<string>(LITELLM_FIELDS.limit);
+  const [softLimitField, setSoftLimitField] = useState<string>(LITELLM_FIELDS.softLimit);
+  const [resetsAtField, setResetsAtField] = useState<string>(LITELLM_FIELDS.resetsAt);
   const [windowKind, setWindowKind] = useState<WindowKind>("monthly");
   const [currency, setCurrency] = useState("USD");
   const [testing, setTesting] = useState(false);
@@ -118,10 +126,10 @@ export function AddUsageLimitSourceDialog({
     setUrl("");
     setManagementKey("");
     setAuthHeader("");
-    setUsedField("");
-    setLimitField("");
-    setSoftLimitField("");
-    setResetsAtField("");
+    setUsedField(LITELLM_FIELDS.used);
+    setLimitField(LITELLM_FIELDS.limit);
+    setSoftLimitField(LITELLM_FIELDS.softLimit);
+    setResetsAtField(LITELLM_FIELDS.resetsAt);
     setWindowKind("monthly");
     setCurrency("USD");
     setTestStatus(null);
@@ -262,13 +270,15 @@ export function AddUsageLimitSourceDialog({
                     value={authHeader}
                     onChange={(event) => setAuthHeader(event.target.value)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    A bare token is sent as <code>Bearer &lt;token&gt;</code>.
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="grid gap-1.5">
                     <Label htmlFor="usage-source-used">Used</Label>
                     <Input
                       id="usage-source-used"
-                      placeholder="spend"
                       value={usedField}
                       onChange={(event) => setUsedField(event.target.value)}
                     />
@@ -277,7 +287,6 @@ export function AddUsageLimitSourceDialog({
                     <Label htmlFor="usage-source-limit">Limit</Label>
                     <Input
                       id="usage-source-limit"
-                      placeholder="budget_table.max_budget"
                       value={limitField}
                       onChange={(event) => setLimitField(event.target.value)}
                     />
@@ -286,7 +295,6 @@ export function AddUsageLimitSourceDialog({
                     <Label htmlFor="usage-source-soft">Soft limit (optional)</Label>
                     <Input
                       id="usage-source-soft"
-                      placeholder="budget_table.soft_budget"
                       value={softLimitField}
                       onChange={(event) => setSoftLimitField(event.target.value)}
                     />
@@ -295,7 +303,6 @@ export function AddUsageLimitSourceDialog({
                     <Label htmlFor="usage-source-resets">Resets at (optional)</Label>
                     <Input
                       id="usage-source-resets"
-                      placeholder="budget_table.budget_reset_at"
                       value={resetsAtField}
                       onChange={(event) => setResetsAtField(event.target.value)}
                     />
@@ -333,8 +340,8 @@ export function AddUsageLimitSourceDialog({
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Fields are dot paths into the JSON response, such as{" "}
-                  <code>budget_table.max_budget</code>.
+                  Fields are dot paths into the JSON response. The defaults match LiteLLM's{" "}
+                  <code>/user/info</code>; change them for other gateways.
                 </p>
               </>
             )}

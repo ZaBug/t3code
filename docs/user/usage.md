@@ -122,9 +122,10 @@ settings section when you no longer need it.
 
 If your agents run through an LLM gateway that enforces a spending budget, open **Settings →
 Providers → Usage providers → Add source** and choose **HTTP endpoint**. Enter the URL that
-reports your spend, the auth header it expects (for example `Bearer sk-…`, or `x-api-key: sk-…`
-for a named header), and the dot paths of the used and limit amounts in its JSON response, such
-as `spend` and `budget_table.max_budget`. Choose **Test** to check the mapping before saving.
+reports your spend and the auth header it expects (a bare token is sent as `Bearer <token>`; write
+`x-api-key: sk-…` for a named header). The field mapping starts with LiteLLM's dot paths, such as
+`spend` and `budget_table.max_budget`; change them for other gateways. Choose **Test** to check
+the mapping before saving.
 
 The budget appears under Claude in **Usage → Limits**, with the amount spent and when it resets.
 

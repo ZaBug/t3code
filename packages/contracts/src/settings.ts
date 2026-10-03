@@ -985,9 +985,9 @@ export type CliproxyUsageLimitSourceConfig = typeof CliproxyUsageLimitSourceConf
 /**
  * Any JSON endpoint that reports a spending budget, such as an LLM gateway's
  * key or user info. `fields` are dot paths into the response (`budget_table.
- * max_budget`, `data.0.spend`). `authHeader` is sent as `Authorization`, or
- * as a named header when written `Name: value`; it is stored and redacted
- * like a hub's management key.
+ * max_budget`, `data.0.spend`). `authHeader` is sent as `Authorization` (a bare
+ * token gets `Bearer `), or as a named header when written `Name: value`; it
+ * is stored and redacted like a hub's management key.
  */
 export const HttpUsageLimitSourceConfig = Schema.Struct({
   kind: Schema.Literal("http"),
