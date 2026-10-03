@@ -9,6 +9,7 @@ import { Minimize2Icon } from "lucide-react";
 import { composerFloatingLayerProps } from "./composerEventScope";
 import { formatThreadCost, formatThreadCostCompact, type ThreadCost } from "~/lib/threadCost";
 import { getDriverOption } from "../settings/providerDriverMeta";
+import type { ThreadBudget } from "~/lib/threadBudget";
 
 /** `reported by Claude`, `estimate`: where the thread cost came from, in a few words. */
 function threadCostSourceLabel(cost: ThreadCost): string {
@@ -41,6 +42,8 @@ export function ContextWindowMeter(props: {
   threadCost?: ThreadCost | null | undefined;
   /** Show the thread cost and context percent as text beside the ring. */
   showCostBadge?: boolean | undefined;
+  /** An HTTP usage source's spending budget, when one is configured. */
+  budget?: ThreadBudget | null | undefined;
 }) {
   const { usage, modelDisplayName, onCompact, compactDisabled, compactDisabledReason, threadCost } =
     props;
@@ -170,6 +173,14 @@ export function ContextWindowMeter(props: {
               </span>
               <span className="font-medium tabular-nums text-secondary-label">
                 {formatThreadCost(threadCost.amountUsd)}
+              </span>
+            </div>
+          ) : null}
+          {props.budget ? (
+            <div className="flex items-center justify-between gap-3 text-2xs leading-4">
+              <span className="text-secondary-label">{props.budget.label}</span>
+              <span className="font-medium tabular-nums text-secondary-label">
+                {props.budget.amount}
               </span>
             </div>
           ) : null}

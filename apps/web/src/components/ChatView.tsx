@@ -467,6 +467,7 @@ import {
 } from "./chat/ContextWindowMeter.logic";
 import { deriveLatestContextWindowSnapshot, formatContextWindowTokens } from "../lib/contextWindow";
 import { useThreadCost } from "./chat/useThreadCost";
+import { threadBudget } from "../lib/threadBudget";
 import {
   DRAFT_HERO_TRANSITION_ANIMATION_ID,
   DRAFT_HERO_TRANSITION_EASING,
@@ -3336,6 +3337,11 @@ export default function ChatView(props: ChatViewProps) {
     setUsageLimitsPanel(null);
   }
   const usageLimitSources = serverConfig?.usageLimitSources ?? EMPTY_USAGE_LIMIT_SOURCES;
+  const threadCostVisible = useClientSettings(selectThreadCostVisible);
+  const activeThreadBudget = useMemo(
+    () => (threadCostVisible ? threadBudget(usageLimitSources) : null),
+    [threadCostVisible, usageLimitSources],
+  );
   const usageLimitsReport = useMemo(
     () =>
       usageLimitsPanel !== null &&
@@ -3468,7 +3474,6 @@ export default function ChatView(props: ChatViewProps) {
       ),
     [activeThreadLiveTokenUsage, serverVisibleTurnItems, serverProjection],
   );
-  const threadCostVisible = useClientSettings(selectThreadCostVisible);
   const activeThreadCost = useThreadCost({
     environmentId: activeThreadRef?.environmentId ?? null,
     projection: serverProjection,
@@ -10936,6 +10941,7 @@ export default function ChatView(props: ChatViewProps) {
                               activeThreadModelSelection={activeThread?.modelSelection}
                               activeContextWindow={activeContextWindow}
                               activeThreadCost={activeThreadCost}
+                              activeThreadBudget={activeThreadBudget}
                               activeTasksProgress={activeComposerTasksProgress}
                               activeTaskSteps={activeComposerTaskSteps}
                               compactThreadUnavailable={compactThreadUnavailable}
