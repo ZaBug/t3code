@@ -1,22 +1,22 @@
-interface PendingClicks {
-  readonly previous: Element | null;
-  readonly runtimeTabIds: Set<string>;
-  count: number;
+interface PreviewClick {
+  readonly runtimeTabId: string;
+  readonly order: number;
+  previous: Element | null;
 }
 
-// Agent clicks can overlap across tabs and threads. A click that starts while
-// another is in flight could see the page that click focused as "what had
-// focus", so overlapping clicks share one window: the first remembers the host
-// focus and the last to finish restores it.
-let pendingClicks: PendingClicks | null = null;
+// Agent clicks can overlap across tabs and threads.
+const inFlightClicks = new Set<PreviewClick>();
+let nextClickOrder = 0;
 
-const restoreHostFocus = ({ previous, runtimeTabIds }: PendingClicks): void => {
+const focusedPreviewTab = (element: Element | null): string | null =>
+  element?.localName === "webview" ? element.getAttribute("data-preview-tab") : null;
+
+const restoreHostFocus = ({ runtimeTabId, previous }: PreviewClick): void => {
   const current = document.activeElement;
   if (
     !(current instanceof HTMLElement) ||
     current === previous ||
-    current.localName !== "webview" ||
-    !runtimeTabIds.has(current.getAttribute("data-preview-tab") ?? "")
+    focusedPreviewTab(current) !== runtimeTabId
   ) {
     return;
   }
@@ -41,22 +41,26 @@ export async function runPreviewClickKeepingHostFocus<A>(
   runtimeTabId: string,
   click: () => Promise<A>,
 ): Promise<A> {
-  const pending = (pendingClicks ??= {
+  const entry: PreviewClick = {
+    runtimeTabId,
+    order: nextClickOrder++,
     previous: document.activeElement,
-    runtimeTabIds: new Set(),
-    count: 0,
-  });
-  pending.count += 1;
-  pending.runtimeTabIds.add(runtimeTabId);
+  };
+  inFlightClicks.add(entry);
   try {
     return await click();
   } finally {
     // Also runs when the click fails: a keystroke that reaches the page after
     // the press counts as human input and fails the click as interrupted.
-    pending.count -= 1;
-    if (pending.count === 0) {
-      pendingClicks = null;
-      restoreHostFocus(pending);
+    inFlightClicks.delete(entry);
+    // A click that started while this one held focus in its page saw that page
+    // as what had focus. Hand it this click's target instead. A click that never
+    // finishes never gets here, so it cannot override where the user goes later.
+    for (const other of inFlightClicks) {
+      if (other.order > entry.order && focusedPreviewTab(other.previous) === runtimeTabId) {
+        other.previous = entry.previous;
+      }
     }
+    restoreHostFocus(entry);
   }
 }

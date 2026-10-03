@@ -73,6 +73,50 @@ describe("runPreviewClickKeepingHostFocus", () => {
     expect(document.activeElement).toBe(composer);
   });
 
+  it("keeps the user's page when overlapping clicks finish in reverse order", async () => {
+    const first = mount("webview", TAB);
+    const second = mount("webview", "other-tab");
+    second.focus();
+    let finishFirst = () => {};
+
+    const firstClick = runPreviewClickKeepingHostFocus(TAB, async () => {
+      first.focus();
+      await new Promise<void>((resolve) => {
+        finishFirst = resolve;
+      });
+    });
+    // Starts while the first click holds focus in its page, and finishes first.
+    await runPreviewClickKeepingHostFocus("other-tab", async () => {
+      second.focus();
+    });
+    finishFirst();
+    await firstClick;
+
+    expect(document.activeElement).toBe(second);
+  });
+
+  it("ignores a click that never finishes", async () => {
+    const composer = mount("textarea");
+    const stuck = mount("webview", "stuck-tab");
+    const webview = mount("webview", TAB);
+    const other = mount("webview", "other-tab");
+    composer.focus();
+
+    // A click queued behind a page promise that never settles.
+    void runPreviewClickKeepingHostFocus("stuck-tab", () => new Promise<never>(() => {}));
+    await runPreviewClickKeepingHostFocus(TAB, async () => {
+      webview.focus();
+    });
+    expect(document.activeElement).toBe(composer);
+
+    // The user opens the stuck tab's page themselves.
+    stuck.focus();
+    await runPreviewClickKeepingHostFocus("other-tab", async () => {
+      other.focus();
+    });
+    expect(document.activeElement).toBe(stuck);
+  });
+
   it("leaves no focus in the page when nothing in the app had focus", async () => {
     const webview = mount("webview", TAB);
 
