@@ -847,10 +847,14 @@ describe("VcsStatusBroadcaster", () => {
     }).pipe(Effect.provide(Layer.merge(makeTestLayer(state), TestClock.layer())));
   });
 
-  it.effect("re-reads local status when a remote refresh changes ahead or behind", () => {
+  // A push from a terminal moves ahead; a PR merged on the host moves ahead-of-default.
+  it.effect.each([
+    ["a push", { ...baseRemoteStatus, aheadCount: 1, aheadOfDefaultCount: 0 }],
+    ["a merged pull request", { ...baseRemoteStatus, aheadOfDefaultCount: 2 }],
+  ] as const)("re-reads local status when a fetch reflects %s", ([, initialRemote]) => {
     const state = {
       currentLocalStatus: baseLocalStatus,
-      currentRemoteStatus: { ...baseRemoteStatus, aheadCount: 1 } as VcsStatusRemoteResult | null,
+      currentRemoteStatus: initialRemote as VcsStatusRemoteResult | null,
       localStatusCalls: 0,
       remoteStatusCalls: 0,
       localInvalidationCalls: 0,
@@ -877,13 +881,13 @@ describe("VcsStatusBroadcaster", () => {
       ).pipe(Effect.forkIn(scope));
       yield* Deferred.await(snapshotDeferred);
 
-      // A push from a terminal: the next fetch drops ahead to 0 and the Changes totals shrink.
+      // The next fetch moves the base, so the Changes totals shrink.
       const pushedLocal: VcsStatusLocalResult = {
         ...baseLocalStatus,
         branchChanges: { baseRef: "origin/main", insertions: 0, deletions: 0 },
       };
       state.currentLocalStatus = pushedLocal;
-      state.currentRemoteStatus = baseRemoteStatus;
+      state.currentRemoteStatus = { ...baseRemoteStatus, aheadOfDefaultCount: 0 };
       yield* TestClock.adjust(Duration.minutes(1));
 
       assert.deepStrictEqual(yield* Deferred.await(localUpdatedDeferred), {
