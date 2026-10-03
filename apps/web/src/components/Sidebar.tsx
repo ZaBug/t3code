@@ -112,6 +112,7 @@ import {
   threadTraversalDirectionFromCommand,
 } from "../keybindings";
 import { useShortcutModifierState } from "../shortcutModifierState";
+import { isPreviewFocused } from "../lib/previewFocus";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { isModelPickerOpen } from "../modelPickerVisibility";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
@@ -4623,6 +4624,8 @@ export default function Sidebar() {
       context: {
         terminalFocus: terminalFocused,
         terminalOpen: routeTerminalOpen,
+        // The right panel claims the same chords for its tabs.
+        previewFocus: isPreviewFocused(),
         modelPickerOpen: isModelPickerOpen(),
         isWeb: !isElectron,
         isDesktop: isElectron,
