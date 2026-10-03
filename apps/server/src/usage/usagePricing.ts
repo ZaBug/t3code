@@ -9,6 +9,8 @@
  */
 import type {
   UsageCategoryCost,
+  UsageCostEstimate,
+  UsageCostEstimateInput,
   UsageCostSource,
   UsageModelPriceOverride,
   UsageTokenTotals,
@@ -354,4 +356,28 @@ export function cacheSavingsUsd(
   if (rate === null) return 0;
   const rates = ratesAt(rate, record.speed);
   return record.totals.cachedInputTokens * (rates.inputCostPerToken - rates.cacheReadCostPerToken);
+}
+
+/**
+ * Prices token totals the caller already has, one entry per model. Overrides
+ * win over the table as everywhere else; models with no rate contribute
+ * nothing and are listed so the caller can say the figure is partial.
+ */
+export function estimateCost(
+  table: RateTable,
+  entries: UsageCostEstimateInput["entries"],
+  overrides?: RateTable,
+): UsageCostEstimate {
+  let costUsd = 0;
+  const unpricedModels = new Set<string>();
+  for (const entry of entries) {
+    const priced = priceUsage(
+      table,
+      { model: entry.model, totals: entry.totals, speed: "standard", reportedCostUsd: null },
+      overrides,
+    );
+    if (priced.costSource === "unpriced") unpricedModels.add(entry.model);
+    else costUsd += priced.costUsd;
+  }
+  return { costUsd, unpricedModels: [...unpricedModels] };
 }
