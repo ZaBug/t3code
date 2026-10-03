@@ -517,6 +517,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["price money spend dollars estimate context window popover"],
   },
   {
+    id: "thread-cost-badge",
+    title: "Show cost in composer badge",
+    to: "/settings/general",
+    searchTerms: ["thread cost price money spend dollars composer indicator text"],
+  },
+  {
     id: "legacy-sidebar",
     title: "Sidebar (legacy)",
     to: "/settings/general",

@@ -663,6 +663,13 @@ describe("ClientSettings thread cost", () => {
     expect(decodeClientSettings({ threadCostEnabled: false }).threadCostEnabled).toBe(false);
     expect(decodeClientSettingsPatch({ threadCostEnabled: false }).threadCostEnabled).toBe(false);
   });
+
+  it("keeps the composer badge opt-in", () => {
+    expect(decodeClientSettings({}).threadCostBadgeEnabled).toBe(false);
+    expect(decodeClientSettingsPatch({ threadCostBadgeEnabled: true }).threadCostBadgeEnabled).toBe(
+      true,
+    );
+  });
 });
 
 describe("ClientSettings send shortcut", () => {

@@ -7,7 +7,7 @@ import {
 } from "./ContextWindowMeter.logic";
 import { Minimize2Icon } from "lucide-react";
 import { composerFloatingLayerProps } from "./composerEventScope";
-import { formatThreadCost, type ThreadCost } from "~/lib/threadCost";
+import { formatThreadCost, formatThreadCostCompact, type ThreadCost } from "~/lib/threadCost";
 import { getDriverOption } from "../settings/providerDriverMeta";
 
 /** `reported by Claude`, `estimate`: where the thread cost came from, in a few words. */
@@ -39,10 +39,19 @@ export function ContextWindowMeter(props: {
   compactDisabled?: boolean | undefined;
   compactDisabledReason?: string | null | undefined;
   threadCost?: ThreadCost | null | undefined;
+  /** Show the thread cost and context percent as text beside the ring. */
+  showCostBadge?: boolean | undefined;
 }) {
   const { usage, modelDisplayName, onCompact, compactDisabled, compactDisabledReason, threadCost } =
     props;
   const usedPercentage = formatPercentage(usage.usedPercentage);
+  // `$1.4 · 32%` beside the ring, for keeping an eye on cost without opening the popover.
+  const badge =
+    props.showCostBadge && threadCost
+      ? [formatThreadCostCompact(threadCost.amountUsd), usedPercentage]
+          .filter((part) => part !== null)
+          .join(" · ")
+      : null;
   const normalizedPercentage = Math.max(0, Math.min(100, usage.usedPercentage ?? 0));
   const radius = 9.75;
   const circumference = 2 * Math.PI * radius;
@@ -62,9 +71,9 @@ export function ContextWindowMeter(props: {
         closeDelay={onCompact ? 150 : 0}
         render={
           <Button
-            size="icon-sm"
+            size={badge ? "compact" : "icon-sm"}
             variant="ghost-muted"
-            className="size-7"
+            className={badge ? undefined : "size-7"}
             aria-label={
               usage.maxTokens !== null && usedPercentage
                 ? `Context window ${usedPercentage} used`
@@ -99,6 +108,7 @@ export function ContextWindowMeter(props: {
                 />
               </svg>
             </span>
+            {badge ? <span className="tabular-nums">{badge}</span> : null}
           </Button>
         }
       />

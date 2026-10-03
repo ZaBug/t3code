@@ -604,6 +604,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       ...(settings.threadCostEnabled !== DEFAULT_UNIFIED_SETTINGS.threadCostEnabled
         ? ["Thread cost"]
         : []),
+      ...(settings.threadCostBadgeEnabled !== DEFAULT_UNIFIED_SETTINGS.threadCostBadgeEnabled
+        ? ["Thread cost badge"]
+        : []),
       ...(settings.responseStreamingMode !== DEFAULT_UNIFIED_SETTINGS.responseStreamingMode
         ? ["Response streaming"]
         : []),
@@ -675,6 +678,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.environmentIdentificationMode,
       settings.contextWindowMeterEnabled,
       settings.threadCostEnabled,
+      settings.threadCostBadgeEnabled,
       settings.fontFamilyCode,
       settings.fontFamilyComposer,
       settings.fontFamilySans,
@@ -789,6 +793,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       contextWindowMeterEnabled: DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled,
       threadCostEnabled: DEFAULT_UNIFIED_SETTINGS.threadCostEnabled,
+      threadCostBadgeEnabled: DEFAULT_UNIFIED_SETTINGS.threadCostBadgeEnabled,
       environmentIdentificationMode: DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       panelAnimationDurationMs: DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs,
@@ -2140,6 +2145,21 @@ function LegacyFeaturesSection() {
                       updateSettings({ threadCostEnabled: Boolean(checked) })
                     }
                     aria-label="Show thread cost"
+                  />
+                }
+              />
+            ) : null}
+            {settings.contextWindowMeterEnabled && settings.threadCostEnabled ? (
+              <SettingsRow
+                {...searchableSetting("thread-cost-badge")}
+                description="Shows the thread cost and context usage as text next to the indicator, such as $1.4 · 32%."
+                control={
+                  <Switch
+                    checked={settings.threadCostBadgeEnabled}
+                    onCheckedChange={(checked) =>
+                      updateSettings({ threadCostBadgeEnabled: Boolean(checked) })
+                    }
+                    aria-label="Show cost in composer badge"
                   />
                 }
               />

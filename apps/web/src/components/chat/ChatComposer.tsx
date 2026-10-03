@@ -1351,6 +1351,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
   activeContextWindow: ContextWindowSnapshot | null;
   activeThreadCost: ThreadCost | null;
   reserveContextWindowMeter: boolean;
+  showThreadCostBadge: boolean;
   activeThreadModelDisplayName: string | null;
   isPreparingWorktree: boolean;
   pendingAction: {
@@ -1389,6 +1390,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         <ContextWindowMeter
           usage={props.activeContextWindow}
           threadCost={props.activeThreadCost}
+          showCostBadge={props.showThreadCostBadge && !props.compact}
           modelDisplayName={props.activeThreadModelDisplayName}
           onCompact={props.onCompactContext}
           compactDisabled={props.compactDisabled}
@@ -7473,6 +7475,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     }
                     reserveContextWindowMeter={reserveContextWindowMeter}
                     activeThreadCost={activeThreadCost}
+                    showThreadCostBadge={
+                      settings.threadCostEnabled && settings.threadCostBadgeEnabled
+                    }
                     activeThreadModelDisplayName={activeThreadModelDisplayName}
                     pendingAction={pendingPrimaryAction}
                     isRunning={phase === "running"}
