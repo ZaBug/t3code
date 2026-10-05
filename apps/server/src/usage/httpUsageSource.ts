@@ -156,6 +156,18 @@ export function authHeaderEntry(authHeader: string): readonly [string, string] |
   return ["Authorization", authHeader];
 }
 
+/**
+ * The header a source sends. A named header carries the token unchanged;
+ * sources saved before the name existed keep their `authHeaderEntry` reading.
+ */
+export function requestAuthHeader(
+  config: Pick<HttpUsageLimitSourceConfig, "authHeader" | "authHeaderName">,
+): readonly [string, string] | null {
+  if (config.authHeader.length === 0) return null;
+  if (config.authHeaderName) return [config.authHeaderName, config.authHeader];
+  return authHeaderEntry(config.authHeader);
+}
+
 /** Reason phrases for the statuses gateways actually answer with. */
 const STATUS_TEXT: Record<number, string> = {
   400: "Bad Request",
@@ -216,7 +228,7 @@ export const makeHttpUsageSource = Effect.gen(function* () {
       },
       catch: () => new UsageLimitSourceError({ detail: "The source URL is not valid." }),
     });
-    const header = authHeaderEntry(config.authHeader);
+    const header = requestAuthHeader(config);
     const request = HttpClientRequest.get(url).pipe(
       HttpClientRequest.acceptJson,
       header ? HttpClientRequest.setHeader(header[0], header[1]) : (request) => request,

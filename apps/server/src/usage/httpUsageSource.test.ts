@@ -10,6 +10,7 @@ import {
   httpUsageAccount,
   makeHttpUsageSource,
   parseHttpUsage,
+  requestAuthHeader,
   requestFailureDetail,
   resolveJsonPath,
 } from "./httpUsageSource.ts";
@@ -163,6 +164,25 @@ describe("authHeaderEntry", () => {
   });
 });
 
+describe("requestAuthHeader", () => {
+  it("sends the token unchanged in a named header", () => {
+    expect(requestAuthHeader({ authHeader: "sk-1", authHeaderName: "x-api-key" })).toEqual([
+      "x-api-key",
+      "sk-1",
+    ]);
+  });
+
+  it("reads a source saved without a header name as before", () => {
+    expect(requestAuthHeader({ authHeader: "sk-1" })).toEqual(["Authorization", "Bearer sk-1"]);
+    expect(requestAuthHeader({ authHeader: "Bearer sk-1" })).toEqual([
+      "Authorization",
+      "Bearer sk-1",
+    ]);
+    expect(requestAuthHeader({ authHeader: "x-api-key: sk-1" })).toEqual(["x-api-key", "sk-1"]);
+    expect(requestAuthHeader({ authHeader: "", authHeaderName: "x-api-key" })).toBeNull();
+  });
+});
+
 describe("HTTP usage source", () => {
   it.effect("reads the endpoint with the stored auth header", () =>
     Effect.gen(function* () {
@@ -182,6 +202,16 @@ describe("HTTP usage source", () => {
       const source = yield* test.source;
       yield* source.read({ ...config, authHeader: "gateway-secret" });
       expect(test.requests[0]?.headers.authorization).toBe("Bearer gateway-secret");
+    }),
+  );
+
+  it.effect("sends the token in the named header without a scheme", () =>
+    Effect.gen(function* () {
+      const test = fixture();
+      const source = yield* test.source;
+      yield* source.read({ ...config, authHeader: "gateway-secret", authHeaderName: "x-api-key" });
+      expect(test.requests[0]?.headers["x-api-key"]).toBe("gateway-secret");
+      expect(test.requests[0]?.headers.authorization).toBeUndefined();
     }),
   );
 

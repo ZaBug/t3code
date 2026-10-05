@@ -1606,6 +1606,53 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     }).pipe(Effect.provide(makeServerSettingsLayerWithSecrets())),
   );
 
+  it.effect("edits an HTTP usage source and keeps or replaces its token", () =>
+    Effect.gen(function* () {
+      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
+      const sourceId = UsageLimitSourceId.make("http-gateway.example.com");
+      const saved = yield* serverSettings.updateSettings({
+        usageLimitSources: {
+          [sourceId]: {
+            kind: "http",
+            url: "https://gateway.example.com/user/info?user_id=a",
+            authHeader: "old-token",
+            enabled: true,
+            fields: { used: "spend", limit: "budget_table.max_budget" },
+            currency: "USD",
+            windowKind: "monthly",
+          },
+        },
+      });
+      const forClient =
+        ServerSettingsModule.redactServerSettingsForClient(saved).usageLimitSources[sourceId];
+      assert.equal(forClient?.kind, "http");
+      if (forClient?.kind !== "http") return;
+
+      // An edit form left the token empty, so it sends the redacted marker back.
+      const edited = yield* serverSettings.updateSettings({
+        usageLimitSources: {
+          [sourceId]: {
+            ...forClient,
+            url: "https://other.example.com/usage?user_id=b",
+            authHeaderName: "x-api-key",
+            windowKind: "weekly",
+          },
+        },
+      });
+      const kept = edited.usageLimitSources[sourceId];
+      assert.equal(kept?.kind === "http" ? kept.authHeader : null, "old-token");
+      assert.equal(kept?.url, "https://other.example.com/usage?user_id=b");
+      assert.equal(kept?.kind === "http" ? kept.authHeaderName : null, "x-api-key");
+      assert.equal(kept?.kind === "http" ? kept.windowKind : null, "weekly");
+
+      const replaced = yield* serverSettings.updateSettings({
+        usageLimitSources: { [sourceId]: { ...forClient, authHeader: "new-token" } },
+      });
+      const next = replaced.usageLimitSources[sourceId];
+      assert.equal(next?.kind === "http" ? next.authHeader : null, "new-token");
+    }).pipe(Effect.provide(makeServerSettingsLayerWithSecrets())),
+  );
+
   it.effect("removes a Bitbucket secret once its token is cleared by hand in settings.json", () =>
     Effect.gen(function* () {
       const serverConfig = yield* ServerConfig.ServerConfig;
