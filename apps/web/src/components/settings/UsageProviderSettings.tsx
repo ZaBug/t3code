@@ -1,5 +1,6 @@
 import type { EnvironmentId, UnifiedSettings } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
+import { usageSourceKindLabel } from "@t3tools/shared/usageLimits";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -109,7 +110,7 @@ export function UsageProviderSettings({
                 title={label}
                 description={
                   <span className="break-all">
-                    {source.kind === "http" ? "HTTP endpoint" : "CLI Proxy"}
+                    {usageSourceKindLabel(source.kind)}
                     {source.enabled ? "" : " · Disabled"}
                     {label !== source.url ? ` · ${source.url}` : ""}
                     {error ? <span className="block text-destructive">{error}</span> : null}

@@ -1016,6 +1016,20 @@ describe("/usage-limits", () => {
     ).toBeNull();
   });
 
+  it("names the kind of source that reported an account", () => {
+    const gateway = {
+      ...sources[0]!,
+      id: UsageLimitSourceId.make("gateway"),
+      kind: "http" as const,
+      label: "Gateway",
+    };
+    const report = collectProviderUsageLimits(selected.instanceId, [selected], [gateway], now);
+    expect(report?.accounts.find((account) => account.id === "gateway:oss")).toMatchObject({
+      label: "Gateway · oss",
+      sourceLabel: "HTTP endpoint",
+    });
+  });
+
   it("surfaces source errors only for sources that carry the selected driver", () => {
     const failing = { ...sources[0]!, error: "token expired" };
     expect(
