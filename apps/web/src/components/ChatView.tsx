@@ -477,7 +477,10 @@ import {
   hasDismissedResumeCompaction,
   shouldOfferResumeCompaction,
 } from "./chat/ContextWindowMeter.logic";
-import { deriveLatestContextWindowSnapshot, formatContextWindowTokens } from "../lib/contextWindow";
+import {
+  deriveLatestContextWindowSnapshot,
+  formatContextWindowTokens,
+} from "@t3tools/client-runtime/context-window";
 import { useThreadCost } from "./chat/useThreadCost";
 import {
   DRAFT_HERO_TRANSITION_ANIMATION_ID,

@@ -103,6 +103,24 @@ export function combineThreadCost(
   };
 }
 
+/**
+ * `reported by Claude`, `estimate`: where the thread cost came from, in a few
+ * words. Each client names drivers with its own provider labels.
+ */
+export function threadCostSourceLabel(
+  cost: ThreadCost,
+  driverLabel: (driver: ProviderDriverKind) => string | undefined,
+): string {
+  const by = cost.reportedBy ? (driverLabel(cost.reportedBy) ?? "provider") : "provider";
+  const label =
+    cost.source === "provider"
+      ? `reported by ${by}`
+      : cost.source === "estimate"
+        ? "estimate"
+        : `reported by ${by} + estimate`;
+  return cost.partial ? `${label}, some models unpriced` : label;
+}
+
 /** `$1.39` in the popover; amounts under a cent read `<$0.01` rather than `$0.00`. */
 export function formatThreadCost(amountUsd: number): string {
   if (amountUsd > 0 && amountUsd < 0.01) return "<$0.01";

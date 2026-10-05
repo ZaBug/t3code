@@ -144,6 +144,17 @@ export function deriveLatestContextWindowSnapshot(
   return null;
 }
 
+/** `4.5%`, `32%`: the context share the composer badge and mobile subtitle show. */
+export function formatContextWindowPercentage(value: number | null): string | null {
+  if (value === null || !Number.isFinite(value)) {
+    return null;
+  }
+  if (value < 10) {
+    return `${value.toFixed(1).replace(/\.0$/, "")}%`;
+  }
+  return `${Math.round(value)}%`;
+}
+
 export function formatContextWindowTokens(value: number | null): string {
   if (value === null || !Number.isFinite(value)) {
     return "0";

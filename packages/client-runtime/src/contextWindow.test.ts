@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as DateTime from "effect/DateTime";
-import { deriveLatestContextWindowSnapshot, formatContextWindowTokens } from "./contextWindow";
+import {
+  deriveLatestContextWindowSnapshot,
+  formatContextWindowPercentage,
+  formatContextWindowTokens,
+} from "./contextWindow.ts";
 
 describe("V2 context window presentation", () => {
   it("uses retained compaction token data when available", () => {
@@ -79,5 +83,14 @@ describe("live provider-turn usage (#8144)", () => {
     });
     expect(snapshot?.maxTokens).toBeNull();
     expect(snapshot?.usedPercentage).toBeNull();
+  });
+});
+
+describe("formatContextWindowPercentage", () => {
+  it("keeps one decimal under 10% and rounds above", () => {
+    expect(formatContextWindowPercentage(4.25)).toBe("4.3%");
+    expect(formatContextWindowPercentage(5)).toBe("5%");
+    expect(formatContextWindowPercentage(32.4)).toBe("32%");
+    expect(formatContextWindowPercentage(null)).toBeNull();
   });
 });
