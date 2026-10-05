@@ -48,6 +48,7 @@ import { GitCommitSheet } from "./features/threads/git/GitCommitSheet";
 import { GitConfirmSheet } from "./features/threads/git/GitConfirmSheet";
 import { GitOverviewSheet } from "./features/threads/git/GitOverviewSheet";
 import { ThreadAgentsSheet } from "./features/threads/ThreadAgentsSheet";
+import { ThreadUsageSheet } from "./features/threads/ThreadUsageSheet";
 import { ThreadQueueSheet } from "./features/threads/ThreadQueueControl";
 import { ThreadRouteScreen } from "./features/threads/ThreadRouteScreen";
 import { ConnectionsRouteScreen } from "./features/connection/ConnectionsRouteScreen";
@@ -545,6 +546,7 @@ const WORKSPACE_OVERLAY_ROUTES = new Set([
   "SettingsLegal",
   "SettingsSheet",
   "ThreadAgents",
+  "ThreadUsage",
   "ThreadQueue",
   "ThreadReviewComment",
   "ThreadDevicePreview",
@@ -776,6 +778,15 @@ const RootStackConfig = createNativeStackNavigator({
         ...FORM_SHEET_PRESENTATION_OPTIONS,
         headerShown: false,
         sheetAllowedDetents: [0.5, 0.9],
+        sheetGrabberVisible: true,
+      },
+    }),
+    ThreadUsage: createNativeStackScreen({
+      screen: ThreadUsageSheet,
+      options: {
+        ...FORM_SHEET_PRESENTATION_OPTIONS,
+        headerShown: false,
+        sheetAllowedDetents: [0.45, 0.8],
         sheetGrabberVisible: true,
       },
     }),

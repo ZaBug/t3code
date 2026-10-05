@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import type { AppSymbolName } from "./AppSymbol";
 import { AppText as Text } from "./AppText";
@@ -30,6 +30,8 @@ export function AndroidHeaderIconButton(props: {
 export function AndroidScreenHeader(props: {
   readonly title: string;
   readonly subtitle?: string | null;
+  /** Makes the subtitle a button, such as the thread's usage details. */
+  readonly subtitleAction?: { readonly accessibilityLabel: string; readonly onPress: () => void };
   readonly actions?: ReadonlyArray<AndroidHeaderAction>;
   readonly leading?: ReactNode;
   readonly trailing?: ReactNode;
@@ -73,7 +75,23 @@ export function AndroidScreenHeader(props: {
           <Text numberOfLines={1} style={titleTypography} className="text-header-foreground">
             {props.title}
           </Text>
-          {props.subtitle ? (
+          {props.subtitle && props.subtitleAction ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={props.subtitleAction.accessibilityLabel}
+              hitSlop={{ top: 4, bottom: 8 }}
+              onPress={props.subtitleAction.onPress}
+              className="self-start active:opacity-60"
+            >
+              <Text
+                numberOfLines={1}
+                style={subtitleTypography}
+                className="mt-px text-[13px] font-t3-medium text-foreground-muted"
+              >
+                {props.subtitle}
+              </Text>
+            </Pressable>
+          ) : props.subtitle ? (
             <Text
               numberOfLines={1}
               style={subtitleTypography}

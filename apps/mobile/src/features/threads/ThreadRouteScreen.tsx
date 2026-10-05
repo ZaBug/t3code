@@ -4,7 +4,7 @@ import { useWorktreeSetup } from "./use-worktree-setup";
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import { ScreenHeader } from "../../components/ScreenHeader";
 import { ScreenHeaderButton } from "../../components/ScreenHeaderButton";
-import type { ScreenHeaderAction } from "../../components/ScreenHeader.types";
+import type { ScreenHeaderAction, ScreenHeaderProps } from "../../components/ScreenHeader.types";
 import { useThreadHeaderOptions } from "./useThreadHeaderOptions";
 import {
   StackActions,
@@ -83,6 +83,8 @@ import {
   type ThreadInspectorMode,
 } from "./thread-inspector-content-stack";
 import { threadRouteIsHydrating } from "./thread-route-hydration";
+import { threadHeaderSubtitle } from "./threadUsageSummary";
+import { useThreadUsage } from "./useThreadUsage";
 
 function ThreadHeader(
   props: Parameters<typeof useThreadHeaderOptions>[0] & {
@@ -93,6 +95,7 @@ function ThreadHeader(
     readonly onToggleInspector: () => void;
     readonly onOpenGitInspector: () => void;
     readonly onOpenFilesInspector: () => void;
+    readonly subtitleAction?: ScreenHeaderProps["subtitleAction"];
   },
 ) {
   const navigation = useNavigation();
@@ -155,6 +158,7 @@ function ThreadHeader(
       <ScreenHeader
         title={props.title}
         subtitle={props.subtitle}
+        subtitleAction={props.subtitleAction}
         sidebar={native.sidebar}
         options={native.options}
         optionsVersion={props.gitControls.projectScripts}
@@ -484,12 +488,34 @@ function ThreadRouteContent(
 
   /* ─── Native header theming ──────────────────────────────────────── */
   const usesNativeHeaderGlass = NATIVE_LIQUID_GLASS_SUPPORTED;
-  const headerSubtitle = [
-    selectedThreadProject?.title ?? null,
-    selectedEnvironmentConnection?.environmentLabel ?? null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // Cost and context ride in the subtitle on Android only, where it can open the details sheet.
+  const showsThreadUsage = Platform.OS === "android" && selectedThread !== null;
+  const threadUsage = useThreadUsage({
+    environmentId: showsThreadUsage ? selectedThread.environmentId : null,
+    threadId: showsThreadUsage ? selectedThread.id : null,
+    projection: showsThreadUsage ? selectedThreadDetail : null,
+  });
+  const headerSubtitle = threadHeaderSubtitle({
+    projectTitle: selectedThreadProject?.title ?? null,
+    environmentLabel: selectedEnvironmentConnection?.environmentLabel ?? null,
+    costUsd: threadUsage.cost?.amountUsd ?? null,
+    contextUsedPercentage: threadUsage.context?.usedPercentage ?? null,
+    showCost: threadUsage.showCost,
+  });
+  const headerSubtitleAction = useMemo(
+    () =>
+      showsThreadUsage
+        ? {
+            accessibilityLabel: "Thread usage details",
+            onPress: () =>
+              navigation.navigate("ThreadUsage", {
+                environmentId: selectedThread.environmentId,
+                threadId: selectedThread.id,
+              }),
+          }
+        : undefined,
+    [navigation, selectedThread, showsThreadUsage],
+  );
   /* ─── Git status for native header trigger ───────────────────────── */
   const gitStatus = useEnvironmentQuery(
     selectedThread !== null && selectedThreadCwd !== null
@@ -1088,6 +1114,7 @@ function ThreadRouteContent(
       <ThreadHeader
         title={selectedThread.title}
         subtitle={headerSubtitle}
+        subtitleAction={headerSubtitleAction}
         headerColor={headerColor}
         usesNativeHeaderGlass={usesNativeHeaderGlass}
         gitControls={threadGitControlProps}

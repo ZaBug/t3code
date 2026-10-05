@@ -3,7 +3,7 @@ import { ScreenScrollView as ScrollView } from "../../components/ScreenScrollVie
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/unstable/reactivity";
 import { useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DEFAULT_SERVER_SETTINGS } from "@t3tools/contracts";
@@ -45,6 +45,7 @@ export function SettingsThreadsRouteScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
         >
           <AutoSettleSettingsRows />
+          {Platform.OS === "android" ? <ThreadCostSettingsSection /> : null}
           <BetaSettingsSection />
           <LegacySettingsSection />
         </ScrollView>
@@ -236,6 +237,31 @@ function AutoSettleSettingsRows() {
           </View>
         </SettingsSection>
       ) : null}
+    </View>
+  );
+}
+
+/** Device-local counterpart of web's "Show thread cost" in Settings → General. */
+function ThreadCostSettingsSection() {
+  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const preferences = useAtomValue(mobilePreferencesAtom);
+  const threadCostEnabled =
+    !AsyncResult.isSuccess(preferences) || preferences.value.threadCostEnabled !== false;
+
+  return (
+    <View className="gap-3">
+      <SettingsSection title="Thread header">
+        <SettingsSwitchRow
+          icon="chart.bar.xaxis"
+          label="Show thread cost"
+          value={threadCostEnabled}
+          onValueChange={(value) => savePreferences({ threadCostEnabled: value })}
+        />
+      </SettingsSection>
+      <Text className="px-2 text-sm text-foreground-muted">
+        The thread header shows the thread's cost next to its context use; tap it for details.
+        Turning this off hides the cost and the gateway budget. Context use stays.
+      </Text>
     </View>
   );
 }
