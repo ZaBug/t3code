@@ -1,17 +1,21 @@
 import {
   type EnvironmentId,
   type HttpUsageLimitSourceConfig,
+  type UsageLimitSourceConfig,
   type UsageLimitSourceTestResult,
   UsageLimitSourceId,
 } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import { formatMoney } from "@t3tools/shared/usageLimits";
+import { ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
 
 import { useUpdateEnvironmentSettings } from "../../hooks/useSettings";
+import { composeUsageSourceUrl, splitUsageSourceUrl } from "../../lib/usageSourceUrl";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import {
   Dialog,
   DialogDescription,
@@ -82,56 +86,92 @@ function failureMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : "Could not read the endpoint.";
 }
 
+/** A saved source opened for editing; its id stays the same even if the host changes. */
+export interface EditedUsageLimitSource {
+  readonly id: UsageLimitSourceId;
+  readonly source: UsageLimitSourceConfig;
+}
+
 /**
- * Adds a usage-limit source from provider settings on one environment: a
- * CLIProxyAPI hub, or any JSON endpoint reporting a spending budget. The
- * secret is sent once and kept in that server's secret store; settings only
- * ever carry a redaction marker for it afterwards.
+ * Adds or edits a usage-limit source from provider settings on one
+ * environment: a CLIProxyAPI hub, or any JSON endpoint reporting a spending
+ * budget. The secret is sent once and kept in that server's secret store;
+ * settings only ever carry a redaction marker for it afterwards. An edit left
+ * with an empty secret sends that marker back, which keeps the stored one.
  */
 export function AddUsageLimitSourceDialog({
   open,
   onOpenChange,
   environmentId,
   environmentLabel,
+  editing,
 }: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly environmentId: EnvironmentId;
   readonly environmentLabel: string;
+  readonly editing?: EditedUsageLimitSource;
 }) {
   const updateSettings = useUpdateEnvironmentSettings(environmentId);
   const testSource = useAtomCommand(serverEnvironment.testUsageLimitSource, {
     reportFailure: false,
   });
-  const [kind, setKind] = useState<SourceKind>("cliproxy");
-  const [label, setLabel] = useState("");
-  const [url, setUrl] = useState("");
+  const saved = editing?.source;
+  const savedHttp = saved?.kind === "http" ? saved : undefined;
+  const [savedUrlParts] = useState(() =>
+    savedHttp ? splitUsageSourceUrl(savedHttp.url) : { baseUrl: "", path: "", userId: "" },
+  );
+  const [kind, setKind] = useState<SourceKind>(saved?.kind ?? "cliproxy");
+  const [label, setLabel] = useState(saved?.label ?? "");
+  const [url, setUrl] = useState(saved?.kind === "cliproxy" ? saved.url : "");
+  const [baseUrl, setBaseUrl] = useState(savedUrlParts.baseUrl);
+  const [path, setPath] = useState(savedUrlParts.path);
+  const [userId, setUserId] = useState(savedUrlParts.userId);
   const [managementKey, setManagementKey] = useState("");
-  const [authHeader, setAuthHeader] = useState("");
-  const [usedField, setUsedField] = useState<string>(LITELLM_FIELDS.used);
-  const [limitField, setLimitField] = useState<string>(LITELLM_FIELDS.limit);
-  const [softLimitField, setSoftLimitField] = useState<string>(LITELLM_FIELDS.softLimit);
-  const [resetsAtField, setResetsAtField] = useState<string>(LITELLM_FIELDS.resetsAt);
-  const [windowKind, setWindowKind] = useState<WindowKind>("monthly");
-  const [currency, setCurrency] = useState("USD");
+  const [token, setToken] = useState("");
+  const [headerName, setHeaderName] = useState(savedHttp?.authHeaderName ?? "");
+  const [advancedOpen, setAdvancedOpen] = useState(Boolean(savedHttp?.authHeaderName));
+  const [usedField, setUsedField] = useState<string>(savedHttp?.fields.used ?? LITELLM_FIELDS.used);
+  const [limitField, setLimitField] = useState<string>(
+    savedHttp?.fields.limit ?? LITELLM_FIELDS.limit,
+  );
+  const [softLimitField, setSoftLimitField] = useState<string>(
+    savedHttp ? (savedHttp.fields.softLimit ?? "") : LITELLM_FIELDS.softLimit,
+  );
+  const [resetsAtField, setResetsAtField] = useState<string>(
+    savedHttp ? (savedHttp.fields.resetsAt ?? "") : LITELLM_FIELDS.resetsAt,
+  );
+  const [windowKind, setWindowKind] = useState<WindowKind>(savedHttp?.windowKind ?? "monthly");
+  const [currency, setCurrency] = useState(savedHttp?.currency ?? "USD");
   const [testing, setTesting] = useState(false);
   const [testStatus, setTestStatus] = useState<{
     readonly ok: boolean;
     readonly text: string;
   } | null>(null);
-  const trimmedUrl = url.trim();
+  const trimmedUrl =
+    kind === "cliproxy" ? url.trim() : composeUsageSourceUrl({ baseUrl, path, userId });
+  const hasUrl = kind === "cliproxy" ? trimmedUrl.length > 0 : baseUrl.trim().length > 0;
   const canSave =
-    trimmedUrl.length > 0 &&
+    hasUrl &&
     (kind === "cliproxy"
-      ? managementKey.trim().length > 0
+      ? editing !== undefined || managementKey.trim().length > 0
       : usedField.trim().length > 0 && limitField.trim().length > 0);
+  // Testing needs the secret, which the client never gets back after saving.
+  const canTest = canSave && (editing === undefined || token.trim().length > 0);
+  // The marker the server sent for the stored secret; echoing it keeps that secret.
+  const savedSecret = saved ? (saved.kind === "http" ? saved.authHeader : saved.managementKey) : "";
 
   const reset = () => {
     setKind("cliproxy");
     setLabel("");
     setUrl("");
+    setBaseUrl("");
+    setPath("");
+    setUserId("");
     setManagementKey("");
-    setAuthHeader("");
+    setToken("");
+    setHeaderName("");
+    setAdvancedOpen(false);
     setUsedField(LITELLM_FIELDS.used);
     setLimitField(LITELLM_FIELDS.limit);
     setSoftLimitField(LITELLM_FIELDS.softLimit);
@@ -145,8 +185,9 @@ export function AddUsageLimitSourceDialog({
     kind: "http",
     ...(label.trim() ? { label: label.trim() } : {}),
     url: trimmedUrl,
-    authHeader: authHeader.trim(),
-    enabled: true,
+    authHeader: token.trim() || savedSecret,
+    ...(headerName.trim() ? { authHeaderName: headerName.trim() } : {}),
+    enabled: saved?.enabled ?? true,
     fields: {
       used: usedField.trim(),
       limit: limitField.trim(),
@@ -158,7 +199,7 @@ export function AddUsageLimitSourceDialog({
   });
 
   const test = async () => {
-    if (!canSave || kind !== "http") return;
+    if (!canTest || kind !== "http") return;
     setTesting(true);
     setTestStatus(null);
     const result = await testSource({ environmentId, input: httpConfig() });
@@ -175,7 +216,7 @@ export function AddUsageLimitSourceDialog({
 
   const save = () => {
     if (!canSave) return;
-    const id = sourceIdFromUrl(kind, trimmedUrl);
+    const id = editing?.id ?? sourceIdFromUrl(kind, trimmedUrl);
     // The patch names only this entry; the server merges it into its map.
     updateSettings({
       usageLimitSources: {
@@ -186,8 +227,8 @@ export function AddUsageLimitSourceDialog({
                 kind: "cliproxy",
                 ...(label.trim() ? { label: label.trim() } : {}),
                 url: trimmedUrl,
-                managementKey: managementKey.trim(),
-                enabled: true,
+                managementKey: managementKey.trim() || savedSecret,
+                enabled: saved?.enabled ?? true,
               },
       },
     });
@@ -205,7 +246,7 @@ export function AddUsageLimitSourceDialog({
     >
       <DialogPopup className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Add a usage source</DialogTitle>
+          <DialogTitle>{editing ? "Edit usage source" : "Add a usage source"}</DialogTitle>
           <DialogDescription>
             {kind === "cliproxy"
               ? "Show the quota of every account a CLIProxyAPI hub pools"
@@ -221,62 +262,131 @@ export function AddUsageLimitSourceDialog({
               save();
             }}
           >
-            <ToggleGroup
-              aria-label="Usage source type"
-              variant="segmented"
-              value={[kind]}
-              onValueChange={(next) => {
-                const value = next[0];
-                if (value === "cliproxy" || value === "http") {
-                  setKind(value);
-                  setTestStatus(null);
-                }
-              }}
-            >
-              <Toggle value="cliproxy">CLIProxyAPI hub</Toggle>
-              <Toggle value="http">HTTP endpoint</Toggle>
-            </ToggleGroup>
-            <div className="grid gap-1.5">
-              <Label htmlFor="usage-source-url">{kind === "cliproxy" ? "Hub URL" : "URL"}</Label>
-              <Input
-                id="usage-source-url"
-                placeholder={
-                  kind === "cliproxy"
-                    ? "https://hub.example.ts.net:8318"
-                    : "https://gateway.example.com/user/info"
-                }
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-                autoFocus
-              />
-            </div>
+            {editing ? null : (
+              <ToggleGroup
+                aria-label="Usage source type"
+                variant="segmented"
+                value={[kind]}
+                onValueChange={(next) => {
+                  const value = next[0];
+                  if (value === "cliproxy" || value === "http") {
+                    setKind(value);
+                    setTestStatus(null);
+                  }
+                }}
+              >
+                <Toggle value="cliproxy">CLIProxyAPI hub</Toggle>
+                <Toggle value="http">HTTP endpoint</Toggle>
+              </ToggleGroup>
+            )}
             {kind === "cliproxy" ? (
-              <div className="grid gap-1.5">
-                <Label htmlFor="usage-source-key">Management key</Label>
-                <Input
-                  id="usage-source-key"
-                  type="password"
-                  autoComplete="off"
-                  value={managementKey}
-                  onChange={(event) => setManagementKey(event.target.value)}
-                />
-              </div>
+              <>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="usage-source-url">Hub URL</Label>
+                  <Input
+                    id="usage-source-url"
+                    placeholder="https://hub.example.ts.net:8318"
+                    value={url}
+                    onChange={(event) => setUrl(event.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="usage-source-key">Management key</Label>
+                  <Input
+                    id="usage-source-key"
+                    type="password"
+                    autoComplete="off"
+                    placeholder={editing ? "Leave empty to keep the current key" : undefined}
+                    value={managementKey}
+                    onChange={(event) => setManagementKey(event.target.value)}
+                  />
+                </div>
+              </>
             ) : (
               <>
                 <div className="grid gap-1.5">
-                  <Label htmlFor="usage-source-auth">Auth header (optional)</Label>
+                  <Label htmlFor="usage-source-base-url">Base URL</Label>
                   <Input
-                    id="usage-source-auth"
+                    id="usage-source-base-url"
+                    placeholder="https://gateway.example.com"
+                    value={baseUrl}
+                    onChange={(event) => setBaseUrl(event.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="usage-source-path">Path</Label>
+                    <Input
+                      id="usage-source-path"
+                      placeholder="/user/info"
+                      value={path}
+                      onChange={(event) => setPath(event.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="usage-source-user-id">User ID (optional)</Label>
+                    <Input
+                      id="usage-source-user-id"
+                      value={userId}
+                      onChange={(event) => setUserId(event.target.value)}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  The user ID is sent as the <code>user_id</code> query param.
+                </p>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="usage-source-token">Token (optional)</Label>
+                  <Input
+                    id="usage-source-token"
                     type="password"
                     autoComplete="off"
-                    placeholder="Bearer sk-… or x-api-key: sk-…"
-                    value={authHeader}
-                    onChange={(event) => setAuthHeader(event.target.value)}
+                    placeholder={editing ? "Leave empty to keep the current token" : "sk-…"}
+                    value={token}
+                    onChange={(event) => {
+                      setToken(event.target.value);
+                      setTestStatus(null);
+                    }}
                   />
                   <p className="text-xs text-muted-foreground">
-                    A bare token is sent as <code>Bearer &lt;token&gt;</code>.
+                    {headerName.trim() ? (
+                      <>
+                        Sent unchanged in the <code>{headerName.trim()}</code> header.
+                      </>
+                    ) : (
+                      <>
+                        Sent as <code>Authorization: Bearer &lt;token&gt;</code>.
+                      </>
+                    )}
+                    {editing ? " Enter the token again to test the source." : ""}
                   </p>
                 </div>
+                <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+                  <CollapsibleTrigger className="flex items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <ChevronRightIcon
+                      className={advancedOpen ? "size-3 rotate-90" : "size-3"}
+                      aria-hidden
+                    />
+                    Advanced
+                  </CollapsibleTrigger>
+                  <CollapsiblePanel>
+                    <div className="grid gap-1.5 pt-2">
+                      <Label htmlFor="usage-source-header-name">Header name (optional)</Label>
+                      <Input
+                        id="usage-source-header-name"
+                        placeholder="x-api-key"
+                        value={headerName}
+                        onChange={(event) => setHeaderName(event.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        For gateways that take the token in another header, without{" "}
+                        <code>Bearer</code>.
+                      </p>
+                    </div>
+                  </CollapsiblePanel>
+                </Collapsible>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="grid gap-1.5">
                     <Label htmlFor="usage-source-used">Used</Label>
@@ -377,7 +487,7 @@ export function AddUsageLimitSourceDialog({
             <Button
               variant="outline"
               className="me-auto"
-              disabled={!canSave || testing}
+              disabled={!canTest || testing}
               onClick={() => void test()}
             >
               {testing ? "Testing…" : "Test"}
@@ -393,7 +503,7 @@ export function AddUsageLimitSourceDialog({
             Cancel
           </Button>
           <Button onClick={save} disabled={!canSave}>
-            {kind === "cliproxy" ? "Add hub" : "Add source"}
+            {editing ? "Save" : kind === "cliproxy" ? "Add hub" : "Add source"}
           </Button>
         </DialogFooter>
       </DialogPopup>
