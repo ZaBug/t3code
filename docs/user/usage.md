@@ -143,6 +143,17 @@ or enter a new token to replace it; **Test** needs the token entered again.
 
 The budget appears under Claude in **Usage → Limits**, with the amount left and when it resets.
 
+## See a thread's cost
+
+On web and desktop, turn on **Settings → General → Legacy features → Context window indicator**,
+then **Show thread cost**. The indicator's popover shows what the thread has cost so far: the
+provider's own figure when it reports one, otherwise an estimate at Usage prices.
+
+On Android, the thread header shows the cost and context use after the project name, such as
+`t3code · Laptop · $1.4 · 32%`. Tap it for the context window, total processed tokens, thread
+cost, and gateway budget. Turn off **Settings → Thread behavior → Show thread cost** to hide the
+cost and budget; context use stays.
+
 ## Subscription usage widget
 
 Add **Subscription usage** from your iOS or Android widget gallery to see remaining Codex and
