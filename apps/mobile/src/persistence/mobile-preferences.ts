@@ -43,6 +43,8 @@ export interface Preferences {
   readonly planModeEnabled?: boolean;
   /** Device-local counterpart of web's `sidebarWorkingShelfEnabled` beta. */
   readonly workingShelfEnabled?: boolean;
+  /** Device-local counterpart of web's "Show thread cost"; unset means on. */
+  readonly threadCostEnabled?: boolean;
   /** Model favorites belong to this device, like the web client setting. */
   readonly modelFavorites?: ReadonlyArray<{
     readonly provider: ProviderInstanceId;
@@ -111,6 +113,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     projectGroupingMode?: SidebarProjectGroupingMode;
     planModeEnabled?: boolean;
     workingShelfEnabled?: boolean;
+    threadCostEnabled?: boolean;
     modelFavorites?: Preferences["modelFavorites"];
     threadListSettledShelfExpanded?: boolean;
     threadListSnoozedShelfExpanded?: boolean;
@@ -187,6 +190,9 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   }
   if (typeof parsed.workingShelfEnabled === "boolean") {
     preferences.workingShelfEnabled = parsed.workingShelfEnabled;
+  }
+  if (typeof parsed.threadCostEnabled === "boolean") {
+    preferences.threadCostEnabled = parsed.threadCostEnabled;
   }
   if (Array.isArray(parsed.modelFavorites)) {
     preferences.modelFavorites = parsed.modelFavorites.filter(

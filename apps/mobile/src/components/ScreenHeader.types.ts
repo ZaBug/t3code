@@ -55,6 +55,8 @@ export interface ScreenHeaderSearch {
 export interface ScreenHeaderProps {
   readonly title: string;
   readonly subtitle?: string;
+  /** Android only: the subtitle becomes a button. iOS shows a native, untappable subtitle. */
+  readonly subtitleAction?: { readonly accessibilityLabel: string; readonly onPress: () => void };
   readonly actions?: ReadonlyArray<ScreenHeaderAction>;
   readonly menus?: ReadonlyArray<ScreenHeaderMenu>;
   readonly search?: ScreenHeaderSearch;
