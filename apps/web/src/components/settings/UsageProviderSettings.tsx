@@ -1,4 +1,4 @@
-import type { EnvironmentId, UnifiedSettings } from "@t3tools/contracts";
+import { type EnvironmentId, type UnifiedSettings, UsageLimitSourceId } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { usageSourceKindLabel } from "@t3tools/shared/usageLimits";
 import { PlusIcon } from "lucide-react";
@@ -18,7 +18,10 @@ import {
 } from "../ui/alert-dialog";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
-import { AddUsageLimitSourceDialog } from "./AddUsageLimitSourceDialog";
+import {
+  AddUsageLimitSourceDialog,
+  type EditedUsageLimitSource,
+} from "./AddUsageLimitSourceDialog";
 import { searchableSetting } from "./settingsSearch";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
 
@@ -52,6 +55,7 @@ export function UsageProviderSettings({
     ),
   );
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<EditedUsageLimitSource | null>(null);
   const [updatingCursor, setUpdatingCursor] = useState(false);
   const entries = Object.entries(sources);
 
@@ -118,10 +122,19 @@ export function UsageProviderSettings({
                 }
                 control={
                   !readOnly ? (
-                    <RemoveUsageProviderButton
-                      label={label}
-                      onConfirm={() => updateSettings({ usageLimitSources: { [id]: null } })}
-                    />
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => setEditing({ id: UsageLimitSourceId.make(id), source })}
+                      >
+                        Edit
+                      </Button>
+                      <RemoveUsageProviderButton
+                        label={label}
+                        onConfirm={() => updateSettings({ usageLimitSources: { [id]: null } })}
+                      />
+                    </div>
                   ) : null
                 }
               />
@@ -135,6 +148,18 @@ export function UsageProviderSettings({
           onOpenChange={setAdding}
           environmentId={environmentId}
           environmentLabel={environmentLabel}
+        />
+      ) : null}
+      {editing && !readOnly ? (
+        <AddUsageLimitSourceDialog
+          key={editing.id}
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditing(null);
+          }}
+          environmentId={environmentId}
+          environmentLabel={environmentLabel}
+          editing={editing}
         />
       ) : null}
     </>

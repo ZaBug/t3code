@@ -593,7 +593,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Usage providers",
     to: "/settings/providers",
     searchTerms: [
-      "usage sources CLIProxyAPI CLI proxy hub HTTP endpoint gateway budget spend quota subscription limits management key auth header add remove",
+      "usage sources CLIProxyAPI CLI proxy hub HTTP endpoint gateway budget spend quota subscription limits management key auth header token bearer base URL path user ID header name add edit remove",
     ],
     providerSettingsOnly: true,
   },
