@@ -3,7 +3,6 @@ import {
   type ContextWindowSnapshot,
   deriveLatestContextWindowSnapshot,
 } from "@t3tools/client-runtime/context-window";
-import { threadBudget, type ThreadBudget } from "@t3tools/client-runtime/thread-budget";
 import {
   collectThreadCostInputs,
   combineThreadCost,
@@ -29,7 +28,6 @@ export interface ThreadUsage {
   readonly context: ContextWindowSnapshot | null;
   /** Null while hidden by the device setting or when no turn reports usage. */
   readonly cost: ThreadCost | null;
-  readonly budget: ThreadBudget | null;
   readonly showCost: boolean;
 }
 
@@ -47,7 +45,6 @@ export function useThreadUsage(input: {
   const preferences = useAtomValue(mobilePreferencesAtom);
   const showCost =
     !AsyncResult.isSuccess(preferences) || preferences.value.threadCostEnabled !== false;
-  const config = useAtomValue(serverEnvironment.configValueAtom(input.environmentId));
   const visibleTurnItems = useThreadVisibleTurnItems({
     environmentId: input.environmentId,
     threadId: input.threadId,
@@ -114,11 +111,5 @@ export function useThreadUsage(input: {
         : null,
     [entriesKey, estimate, inputs],
   );
-  const usageLimitSources = config?.usageLimitSources;
-  const budget = useMemo(
-    () => (showCost && usageLimitSources ? threadBudget(usageLimitSources) : null),
-    [showCost, usageLimitSources],
-  );
-
-  return { context, cost, budget, showCost };
+  return { context, cost, showCost };
 }

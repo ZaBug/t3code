@@ -27,7 +27,7 @@ const DRIVER_LABEL: Partial<Record<string, string>> = {
 const driverLabel = (driver: ProviderDriverKind) => DRIVER_LABEL[driver];
 
 /**
- * The thread's context window, cost, and gateway budget: the details web shows
+ * The thread's context window and cost: the details web shows
  * in the composer's context popover. Opened from the thread header subtitle on
  * Android; the device's "Show thread cost" setting hides the money rows.
  */
@@ -36,7 +36,7 @@ export function ThreadUsageSheet({ route }: StaticScreenProps<UsageTarget>) {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const thread = useEnvironmentThread(target.environmentId, target.threadId);
-  const { context, cost, budget } = useThreadUsage({
+  const { context, cost } = useThreadUsage({
     environmentId: target.environmentId,
     threadId: target.threadId,
     projection: Option.getOrNull(thread.data),
@@ -53,7 +53,7 @@ export function ThreadUsageSheet({ route }: StaticScreenProps<UsageTarget>) {
         contentContainerClassName="px-5 pt-2"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 8 }}
       >
-        {context === null && cost === null && budget === null ? (
+        {context === null && cost === null ? (
           <Text className="pt-6 text-center text-sm text-foreground-muted">
             No usage reported yet.
           </Text>
@@ -78,7 +78,6 @@ export function ThreadUsageSheet({ route }: StaticScreenProps<UsageTarget>) {
             value={formatThreadCost(cost.amountUsd)}
           />
         ) : null}
-        {budget ? <UsageRow label={budget.label} value={budget.amount} /> : null}
       </ScrollView>
     </View>
   );

@@ -260,7 +260,7 @@ function ThreadCostSettingsSection() {
       </SettingsSection>
       <Text className="px-2 text-sm text-foreground-muted">
         The thread header shows the thread's cost next to its context use; tap it for details.
-        Turning this off hides the cost and the gateway budget. Context use stays.
+        Turning this off hides the cost. Context use stays.
       </Text>
     </View>
   );
