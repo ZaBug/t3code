@@ -16,6 +16,7 @@ import {
   type ServerProviderUsageLimits,
   type ServerProviderUsageSpend,
   type ServerProviderUsageWindow,
+  type UsageLimitSourceSnapshot,
   type UsageLimitSourceSnapshots,
 } from "@t3tools/contracts";
 
@@ -537,6 +538,11 @@ export function singleAccountSpend(
   return members.length === 1 ? (members[0]!.window.spend ?? null) : null;
 }
 
+/** What kind of usage source reported an account, as settings and reports name it. */
+export function usageSourceKindLabel(kind: UsageLimitSourceSnapshot["kind"]): string {
+  return kind === "http" ? "HTTP endpoint" : "CLI Proxy";
+}
+
 function resetMillis(window: ServerProviderUsageWindow): number | null {
   if (window.resetsAt === undefined) return null;
   const at = Date.parse(window.resetsAt);
@@ -751,7 +757,7 @@ export function collectProviderUsageLimits(
         id: `${source.id}:${account.id}`,
         driver: account.driver,
         label: `${source.label} · ${account.id}`,
-        sourceLabel: "CLI Proxy",
+        sourceLabel: usageSourceKindLabel(source.kind),
         ...(account.usageLimits.resetCredits?.nextCreditId
           ? {
               resetCreditInput: {
