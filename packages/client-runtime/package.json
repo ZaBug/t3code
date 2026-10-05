@@ -7,6 +7,18 @@
       "types": "./src/composerThreadItems.ts",
       "default": "./src/composerThreadItems.ts"
     },
+    "./context-window": {
+      "types": "./src/contextWindow.ts",
+      "default": "./src/contextWindow.ts"
+    },
+    "./thread-budget": {
+      "types": "./src/threadBudget.ts",
+      "default": "./src/threadBudget.ts"
+    },
+    "./thread-cost": {
+      "types": "./src/threadCost.ts",
+      "default": "./src/threadCost.ts"
+    },
     "./handoff": {
       "types": "./src/handoff.ts",
       "default": "./src/handoff.ts"

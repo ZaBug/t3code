@@ -5,7 +5,8 @@ import {
   combineThreadCost,
   formatThreadCost,
   formatThreadCostCompact,
-} from "./threadCost";
+  threadCostSourceLabel,
+} from "./threadCost.ts";
 
 type Projection = Parameters<typeof collectThreadCostInputs>[0];
 
@@ -137,5 +138,31 @@ describe("thread cost formatting", () => {
     expect(formatThreadCostCompact(0.42)).toBe("$0.42");
     expect(formatThreadCostCompact(1.39)).toBe("$1.4");
     expect(formatThreadCostCompact(123.4)).toBe("$123");
+  });
+});
+
+describe("threadCostSourceLabel", () => {
+  const label = (driver: string) => (driver === "claudeAgent" ? "Claude" : undefined);
+  const cost = {
+    amountUsd: 1,
+    source: "provider" as const,
+    reportedBy: "claudeAgent" as never,
+    partial: false,
+  };
+
+  it("names the reporting provider with the client's label", () => {
+    expect(threadCostSourceLabel(cost, label)).toBe("reported by Claude");
+    expect(threadCostSourceLabel({ ...cost, source: "mixed" }, label)).toBe(
+      "reported by Claude + estimate",
+    );
+    expect(threadCostSourceLabel({ ...cost, reportedBy: null }, label)).toBe(
+      "reported by provider",
+    );
+  });
+
+  it("marks an estimate with unpriced models", () => {
+    expect(threadCostSourceLabel({ ...cost, source: "estimate", partial: true }, label)).toBe(
+      "estimate, some models unpriced",
+    );
   });
 });

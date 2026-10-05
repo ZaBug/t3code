@@ -6,7 +6,7 @@ import {
   combineThreadCost,
   type ThreadCost,
   type ThreadCostInputs,
-} from "../../lib/threadCost";
+} from "@t3tools/client-runtime/thread-cost";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 

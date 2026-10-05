@@ -1,5 +1,9 @@
 import { Button } from "../ui/button";
-import { type ContextWindowSnapshot, formatContextWindowTokens } from "~/lib/contextWindow";
+import {
+  type ContextWindowSnapshot,
+  formatContextWindowPercentage,
+  formatContextWindowTokens,
+} from "@t3tools/client-runtime/context-window";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import {
   formatContextWindowCompactionMessage,
@@ -7,31 +11,17 @@ import {
 } from "./ContextWindowMeter.logic";
 import { Minimize2Icon } from "lucide-react";
 import { composerFloatingLayerProps } from "./composerEventScope";
-import { formatThreadCost, formatThreadCostCompact, type ThreadCost } from "~/lib/threadCost";
+import {
+  formatThreadCost,
+  formatThreadCostCompact,
+  threadCostSourceLabel,
+  type ThreadCost,
+} from "@t3tools/client-runtime/thread-cost";
 import { getDriverOption } from "../settings/providerDriverMeta";
-import type { ThreadBudget } from "~/lib/threadBudget";
+import type { ThreadBudget } from "@t3tools/client-runtime/thread-budget";
 
-/** `reported by Claude`, `estimate`: where the thread cost came from, in a few words. */
-function threadCostSourceLabel(cost: ThreadCost): string {
-  const by = cost.reportedBy ? (getDriverOption(cost.reportedBy)?.label ?? "provider") : "provider";
-  const label =
-    cost.source === "provider"
-      ? `reported by ${by}`
-      : cost.source === "estimate"
-        ? "estimate"
-        : `reported by ${by} + estimate`;
-  return cost.partial ? `${label}, some models unpriced` : label;
-}
-
-function formatPercentage(value: number | null): string | null {
-  if (value === null || !Number.isFinite(value)) {
-    return null;
-  }
-  if (value < 10) {
-    return `${value.toFixed(1).replace(/\.0$/, "")}%`;
-  }
-  return `${Math.round(value)}%`;
-}
+const driverLabel = (driver: Parameters<typeof getDriverOption>[0]) =>
+  getDriverOption(driver)?.label;
 
 export function ContextWindowMeter(props: {
   usage: ContextWindowSnapshot;
@@ -47,7 +37,7 @@ export function ContextWindowMeter(props: {
 }) {
   const { usage, modelDisplayName, onCompact, compactDisabled, compactDisabledReason, threadCost } =
     props;
-  const usedPercentage = formatPercentage(usage.usedPercentage);
+  const usedPercentage = formatContextWindowPercentage(usage.usedPercentage);
   // `$1.4 · 32%` beside the ring, for keeping an eye on cost without opening the popover.
   const badge =
     props.showCostBadge && threadCost
@@ -169,7 +159,9 @@ export function ContextWindowMeter(props: {
             <div className="flex items-center justify-between gap-3 text-2xs leading-4">
               <span className="text-secondary-label">
                 Thread cost{" "}
-                <span className="opacity-70">({threadCostSourceLabel(threadCost)})</span>
+                <span className="opacity-70">
+                  ({threadCostSourceLabel(threadCost, driverLabel)})
+                </span>
               </span>
               <span className="font-medium tabular-nums text-secondary-label">
                 {formatThreadCost(threadCost.amountUsd)}

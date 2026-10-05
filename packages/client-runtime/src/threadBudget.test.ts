@@ -1,7 +1,7 @@
 import type { UsageLimitSourceSnapshots } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { threadBudget } from "./threadBudget";
+import { threadBudget } from "./threadBudget.ts";
 
 const source = (kind: "http" | "cliproxy", windowKind = "monthly", spend = true) =>
   ({
