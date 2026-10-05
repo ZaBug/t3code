@@ -989,15 +989,18 @@ export type CliproxyUsageLimitSourceConfig = typeof CliproxyUsageLimitSourceConf
 /**
  * Any JSON endpoint that reports a spending budget, such as an LLM gateway's
  * key or user info. `fields` are dot paths into the response (`budget_table.
- * max_budget`, `data.0.spend`). `authHeader` is sent as `Authorization` (a bare
- * token gets `Bearer `), or as a named header when written `Name: value`; it
- * is stored and redacted like a hub's management key.
+ * max_budget`, `data.0.spend`). `authHeader` is the secret, stored and
+ * redacted like a hub's management key. With `authHeaderName` it is sent
+ * unchanged in that header; without, it is sent as `Authorization` (a bare
+ * token gets `Bearer `), or as a named header when written `Name: value`.
+ * The name lives outside the secret so an edit form can still show it.
  */
 export const HttpUsageLimitSourceConfig = Schema.Struct({
   kind: Schema.Literal("http"),
   label: Schema.optional(TrimmedNonEmptyString),
   url: TrimmedNonEmptyString,
   authHeader: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  authHeaderName: Schema.optional(TrimmedNonEmptyString),
   enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   fields: Schema.Struct({
     used: TrimmedNonEmptyString,

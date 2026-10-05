@@ -1143,6 +1143,21 @@ describe("ServerSettings usage limit sources", () => {
     });
   });
 
+  it("keeps a named auth header outside the secret", () => {
+    const settings = decodeServerSettings({
+      usageLimitSources: {
+        "http-gateway.example.com": {
+          kind: "http",
+          url: "https://gateway.example.com/user/info",
+          authHeaderName: "x-api-key",
+          fields: { used: "spend", limit: "budget_table.max_budget" },
+        },
+      },
+    });
+    const source = settings.usageLimitSources["http-gateway.example.com" as never];
+    expect(source?.kind === "http" ? source.authHeaderName : null).toBe("x-api-key");
+  });
+
   it("keeps decoding cliproxy hubs as before", () => {
     const settings = decodeServerSettings({
       usageLimitSources: { hub: { kind: "cliproxy", url: "http://hub:8317" } },
