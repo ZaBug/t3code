@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import type { HttpUsageLimitSourceConfig } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
-import { HttpClient, HttpClientError, HttpClientResponse } from "effect/unstable/http";
+import { HttpClient, HttpClientError, HttpClientResponse } from "effect/http";
 
 import {
   authHeaderEntry,

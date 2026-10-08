@@ -1,4 +1,9 @@
 import {
+  createV5StackNavigator as createNativeStackNavigator,
+  createV5SheetStackNavigator,
+} from "./native/createV5StackNavigator";
+import { createWorkspaceStackNavigator } from "./features/layout/createWorkspaceStackNavigator";
+import {
   createPathConfigForStaticNavigation,
   getPathFromState,
   NavigationState,
@@ -6,7 +11,6 @@ import {
   useNavigation,
 } from "@react-navigation/native";
 import {
-  createNativeStackNavigator,
   createNativeStackScreen,
   type NativeStackNavigationOptions,
 } from "@react-navigation/native-stack";
@@ -43,6 +47,7 @@ import { ReviewCommentComposerSheet } from "./features/review/ReviewCommentCompo
 import { ReviewSheet } from "./features/review/ReviewSheet";
 import { ThreadTerminalRouteScreen } from "./features/terminal/ThreadTerminalRouteScreen";
 import { DevicePreviewRouteScreen } from "./features/devices/DevicePreviewRouteScreen";
+import { BrowserPreviewRouteScreen } from "./features/browser/BrowserPreviewRouteScreen";
 import { GitBranchesSheet } from "./features/threads/git/GitBranchesSheet";
 import { GitCommitSheet } from "./features/threads/git/GitCommitSheet";
 import { GitConfirmSheet } from "./features/threads/git/GitConfirmSheet";
@@ -51,6 +56,7 @@ import { ThreadAgentsSheet } from "./features/threads/ThreadAgentsSheet";
 import { ThreadUsageSheet } from "./features/threads/ThreadUsageSheet";
 import { ThreadQueueSheet } from "./features/threads/ThreadQueueControl";
 import { ThreadRouteScreen } from "./features/threads/ThreadRouteScreen";
+import { McpAppFullscreenScreen } from "./features/threads/McpAppFullscreenScreen";
 import { ConnectionsRouteScreen } from "./features/connection/ConnectionsRouteScreen";
 import { ConnectionsNewRouteScreen } from "./features/connection/ConnectionsNewRouteScreen";
 import { HomeRouteScreen } from "./features/home/HomeRouteScreen";
@@ -188,7 +194,7 @@ const LEGAL_DOCUMENT_HEADER_OPTIONS: AppScreenOptions = {
   presentation: "fullScreenModal",
 };
 
-const SettingsContentStack = createNativeStackNavigator({
+const SettingsContentStack = createV5SheetStackNavigator({
   initialRouteName: "Settings",
   screenOptions: {
     ...GLASS_HEADER_OPTIONS,
@@ -398,7 +404,7 @@ const SettingsContentStack = createNativeStackNavigator({
 // The outer stack never owns visible chrome. Settings routes render inside a
 // nested stack whose native header remains mounted, while Clerk owns auth chrome.
 // Keeping bar visibility invariant avoids iOS 26's headerless-to-headered jump.
-const SettingsSheetStack = createNativeStackNavigator({
+const SettingsSheetStack = createV5SheetStackNavigator({
   initialRouteName: "SettingsContent",
   screenOptions: {
     headerShown: false,
@@ -550,6 +556,7 @@ const WORKSPACE_OVERLAY_ROUTES = new Set([
   "ThreadQueue",
   "ThreadReviewComment",
   "ThreadDevicePreview",
+  "ThreadBrowserPreview",
   "ThreadSettingsSheet",
 ]);
 
@@ -669,7 +676,7 @@ function NotFoundScreen() {
   );
 }
 
-const RootStackConfig = createNativeStackNavigator({
+const RootStackConfig = createWorkspaceStackNavigator({
   initialRouteName: "Home",
   layout: RootStackLayout,
   screenOptions: {
@@ -699,6 +706,17 @@ const RootStackConfig = createNativeStackNavigator({
     ThreadDevicePreview: createNativeStackScreen({
       screen: DevicePreviewRouteScreen,
       linking: `${THREAD_LINKING_PREFIX}/devices`,
+      options: {
+        presentation: "fullScreenModal",
+        headerShown: false,
+        gestureEnabled: false,
+        autoHideHomeIndicator: true,
+        navigationBarHidden: true,
+      },
+    }),
+    ThreadBrowserPreview: createNativeStackScreen({
+      screen: BrowserPreviewRouteScreen,
+      linking: `${THREAD_LINKING_PREFIX}/browser`,
       options: {
         presentation: "fullScreenModal",
         headerShown: false,
@@ -735,6 +753,15 @@ const RootStackConfig = createNativeStackNavigator({
       screen: ThreadFileScreen,
       linking: `${THREAD_LINKING_PREFIX}/files/:path*`,
       options: SOLID_HEADER_OPTIONS,
+    }),
+    ThreadMcpApp: createNativeStackScreen({
+      screen: McpAppFullscreenScreen,
+      linking: `${THREAD_LINKING_PREFIX}/apps/:itemId`,
+      options: {
+        presentation: "fullScreenModal",
+        headerShown: false,
+        gestureEnabled: false,
+      },
     }),
     ThreadAttachment: createNativeStackScreen({
       screen: AttachmentFileScreen,

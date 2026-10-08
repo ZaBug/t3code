@@ -28,7 +28,7 @@ import {
   type ServerProvider,
   type ServerProviderSkill,
   type RunId,
-  type ThreadId,
+  ThreadId,
   type ToolActivityIcon,
 } from "@t3tools/contracts";
 import { parseScopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
@@ -40,11 +40,16 @@ import { canForkProjectedAssistantItem } from "@t3tools/client-runtime/state/thr
 import { notificationChildThreadId } from "@t3tools/client-runtime/state/thread-execution";
 import { replaceComposerContextReferences } from "@t3tools/shared/composerContextReferences";
 import {
+  liveThoughtLine,
   resolveWorkEntryToolPresentation,
   resolveViewedImageAsset,
   workEntryViewedImagePath,
 } from "@t3tools/client-runtime/work-log/presentation";
 import { resolveWorkGroupScrollAnchor } from "@t3tools/client-runtime/work-log/scroll-anchor";
+import {
+  turnItemHasDetail,
+  turnItemNeedsDetailFetch,
+} from "@t3tools/client-runtime/work-log/item-detail";
 import { formatAttachmentSize } from "@t3tools/client-runtime/state/attachments";
 import {
   subagentGroupSummary,
@@ -164,6 +169,8 @@ import {
   SnapShotAttachmentDetails,
 } from "./SnapShotAttachmentDetails";
 import { ProposedPlanCard } from "./ProposedPlanCard";
+import { HtmlRenderFrame } from "./HtmlRenderFrame";
+import { McpAppFrame } from "./McpAppFrame";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { useFileContextMenuHandler } from "../../fileContextMenu";
 import { useProject, useThreadShell } from "../../state/entities";
@@ -202,6 +209,9 @@ import {
   resolveWorkGroupScrollIndex,
   shouldFollowWorkGroupAppend,
   shouldPreserveAssistantLineBreaks,
+  threadReadLabelPrefix,
+  threadReadTargetId,
+  threadReadTargetTitle,
   toolGroupAction,
   workEntryDisplayLabel,
   workEntryReadOutput,
@@ -216,7 +226,7 @@ import {
 import { TerminalContextInlineChip } from "./TerminalContextInlineChip";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Spinner } from "../ui/spinner";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { Tooltip, TooltipPopup, TooltipTrigger, TooltipScrollDismissArea } from "../ui/tooltip";
 import { WorktreeSetupCard } from "./WorktreeSetupCard";
 import {
   ContextChipPopover as UserMessageContextPopover,
@@ -260,7 +270,7 @@ import {
   formatDayAwareTimestamp,
   formatUpcomingTimestamp,
 } from "../../timestampFormat";
-import { V2ItemInspector } from "./V2ItemInspector";
+import { FetchedToolOutput, V2ItemInspector } from "./V2ItemInspector";
 import { useV2ItemSupport } from "../../state/v2ItemSupport";
 import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from "../ui/collapsible";
 import {
@@ -271,6 +281,7 @@ import {
   V2LifecycleRow,
   type HandoffTimelineRun,
 } from "./V2LifecycleRow";
+import { SecretRequestCard } from "./SecretRequestCard";
 import { TimelineSystemDivider } from "./TimelineSystemDivider";
 
 import { SkillChipIcon, SkillInlineText } from "./SkillInlineText";
@@ -306,6 +317,14 @@ interface TimelineRowSharedState {
   activeThreadEnvironmentId: EnvironmentId;
   onRevertToTurnCount: (targetTurnCount: number, messageId: MessageId) => void;
   onUseArtifactTemplate: (template: CodexArtifactTemplate) => void;
+  /** Sends text an MCP App asked to post, after the user approved it. */
+  onSendAppMessage: ((text: string) => Promise<void>) | undefined;
+  /**
+   * An MCP App row entering or leaving full screen. The row stays rendered
+   * and the list stops following new output meanwhile, so the app is not
+   * virtualized away while the reader is using it.
+   */
+  onAppFullscreenChange: (rowId: string, fullscreen: boolean) => void;
   onRunShellCommand: ((command: string) => void) | undefined;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   displayThreadKey?: string;
@@ -339,6 +358,8 @@ interface TimelineRowActivityState {
   isCompacting: boolean;
   isRevertingCheckpoint: boolean;
   activeTurnInProgress: boolean;
+  /** The agent waits on an approval or an answer from the user. */
+  awaitingUser: boolean;
   isPreparingWorktree: boolean;
   latestRunId: RunId | null;
   /**
@@ -365,11 +386,18 @@ const TIMELINE_LIST_HEADER = <div className="h-3 sm:h-4" />;
 const TIMELINE_LIST_FADE_HEADER = (
   <div className="h-[var(--workspace-titlebar-scroll-fade-height)]" />
 );
-function TimelineListFooter({ composerInset }: { readonly composerInset: number }) {
+function TimelineListFooter({
+  composerInset,
+  children,
+}: {
+  readonly composerInset: number;
+  readonly children?: ReactNode;
+}) {
   return (
-    <div aria-hidden>
-      <div style={{ height: composerInset }} />
-      <div className="h-3 sm:h-4" />
+    <div>
+      {children}
+      <div aria-hidden style={{ height: composerInset }} />
+      <div aria-hidden className="h-3 sm:h-4" />
     </div>
   );
 }
@@ -428,6 +456,10 @@ interface MessagesTimelineProps {
   onOpenWorktreeSetupTerminal?: (terminalId: string) => void;
   isPreparingWorktree?: boolean;
   isCompacting?: boolean;
+  /** The agent waits on an approval or an answer from the user. */
+  awaitingUser?: boolean;
+  /** Thread state shown after the last message, such as a settled or snoozed line. */
+  footer?: ReactNode;
 
   listRef: React.RefObject<LegendListRef | null>;
   timelineEntries: ReadonlyArray<TimelineEntry>;
@@ -453,6 +485,7 @@ interface MessagesTimelineProps {
   supportsConversationRollback: boolean;
   onRevertToTurnCount: (targetTurnCount: number, messageId: MessageId) => void;
   onUseArtifactTemplate?: (template: CodexArtifactTemplate) => void;
+  onSendAppMessage?: (text: string) => Promise<void>;
   onRunShellCommand?: (command: string) => void;
   isRevertingCheckpoint: boolean;
   onImageExpand: (preview: ExpandedImagePreview) => void;
@@ -506,6 +539,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   activeTurnInProgress,
   activeTurnStartedAt = null,
   worktreeSetup = null,
+  footer = null,
   onCancelWorktreeSetup,
   retryableWorkspacePreparationRunIds = EMPTY_RUN_IDS,
   onRetryWorkspacePreparation,
@@ -513,6 +547,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   onOpenWorktreeSetupTerminal,
   isPreparingWorktree = false,
   isCompacting = false,
+  awaitingUser = false,
   listRef,
   timelineEntries,
   latestRun,
@@ -528,6 +563,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   supportsConversationRollback,
   onRevertToTurnCount,
   onUseArtifactTemplate = NOOP_USE_ARTIFACT_TEMPLATE,
+  onSendAppMessage,
   onRunShellCommand,
   isRevertingCheckpoint,
   onImageExpand,
@@ -943,7 +979,26 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     onManualNavigation,
   });
   const [minimapHasPersistentGutter, setMinimapHasPersistentGutter] = useState(false);
-  const alwaysRender = citationAlwaysRender ?? restoringAlwaysRender;
+  const [fullscreenAppRowId, setFullscreenAppRowId] = useState<string | null>(null);
+  // Only the row that holds the pin can release it.
+  const onAppFullscreenChange = useCallback((rowId: string, fullscreen: boolean) => {
+    setFullscreenAppRowId((current) => (fullscreen ? rowId : current === rowId ? null : current));
+  }, []);
+  // Every pin holds at once, so navigating to a citation or restoring a
+  // position never drops a full-screen app's row. The app is pinned by key,
+  // which stays right as earlier rows load in.
+  const alwaysRender = useMemo(() => {
+    const indices = restoringAlwaysRender?.indices ?? [];
+    const keys = [
+      ...(citationAlwaysRender?.keys ?? []),
+      ...(fullscreenAppRowId === null ? [] : [fullscreenAppRowId]),
+    ];
+    if (indices.length === 0 && keys.length === 0) return undefined;
+    return {
+      ...(indices.length === 0 ? {} : { indices }),
+      ...(keys.length === 0 ? {} : { keys }),
+    };
+  }, [citationAlwaysRender, restoringAlwaysRender, fullscreenAppRowId]);
   const [minimapHitStripWidth, setMinimapHitStripWidth] = useState(0);
   const [minimapCurrentIndex, setMinimapCurrentIndex] = useState<number | null>(null);
   const handleAnchorReady = useCallback(
@@ -982,8 +1037,12 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     [shouldRestoreVisibleContentPosition],
   );
   const timelineListFooter = useMemo(
-    () => <TimelineListFooter composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment} />,
-    [anchoredEndSpace, contentInsetEndAdjustment],
+    () => (
+      <TimelineListFooter composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment}>
+        {footer}
+      </TimelineListFooter>
+    ),
+    [anchoredEndSpace, contentInsetEndAdjustment, footer],
   );
 
   const measureContentOverflow = useCallback(
@@ -1163,6 +1222,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onImageExpand,
       onFileOpen,
       onUseArtifactTemplate,
+      onSendAppMessage,
+      onAppFullscreenChange,
       onFileDownload,
       openPullRequest,
       onOpenTurnDiff,
@@ -1198,6 +1259,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onImageExpand,
       onFileOpen,
       onUseArtifactTemplate,
+      onSendAppMessage,
+      onAppFullscreenChange,
       onFileDownload,
       openPullRequest,
       onOpenTurnDiff,
@@ -1232,10 +1295,12 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       isRevertingCheckpoint,
       backgroundWorktreeSetup,
       activeTurnInProgress,
+      awaitingUser,
       isPreparingWorktree,
       latestRunId: latestRun?.runId ?? null,
     }),
     [
+      awaitingUser,
       compactionAwaitingRow,
       backgroundWorktreeSetup,
       activeTurnInProgress,
@@ -1302,7 +1367,9 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     rows.length === 0 &&
     !isWorking &&
     parentThreadLink === null &&
-    historyControls === undefined
+    historyControls === undefined &&
+    // A status line (settled, snoozed) still needs the list, whose footer renders it.
+    footer === null
   ) {
     if (hideEmptyPlaceholder) {
       // Occupy the pane with the theme surface so a thread switch cannot
@@ -1321,7 +1388,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   return (
     <TimelineRowCtx value={sharedState}>
       <TimelineRowActivityCtx value={activityState}>
-        <div
+        <TooltipScrollDismissArea
           ref={setTimelineViewportElement}
           className="relative h-full min-h-0"
           data-assistant-citation-viewport="true"
@@ -1353,6 +1420,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
               (restoringThreadPosition && rememberedPosition?.atEnd === false) ||
               anchoredEndSpace ||
               !liveFollowEnabled ||
+              fullscreenAppRowId !== null ||
               disclosureToggleSettling
                 ? false
                 : isWorking && !prefersReducedMotion && settlingListIdentity === null
@@ -1390,7 +1458,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
               });
             }}
           />
-        </div>
+        </TooltipScrollDismissArea>
       </TimelineRowActivityCtx>
     </TimelineRowCtx>
   );
@@ -1775,7 +1843,9 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
                   !row.showAssistantMeta) ||
                 row.kind === "worktree-setup" ||
                 row.kind === "event" ||
-                row.kind === "attempt-fold"
+                row.kind === "attempt-fold" ||
+                row.kind === "html-render" ||
+                row.kind === "mcp-app"
               ? "pb-2"
               : "pb-4",
         (row.kind === "message" && row.message.role === "assistant") ||
@@ -1823,6 +1893,8 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       ) : null}
       {row.kind === "assistant-meta" ? <AssistantMetaTimelineRow row={row} /> : null}
       {row.kind === "proposed-plan" ? <ProposedPlanTimelineRow row={row} /> : null}
+      {row.kind === "html-render" ? <HtmlRenderTimelineRow row={row} /> : null}
+      {row.kind === "mcp-app" ? <McpAppTimelineRow row={row} /> : null}
       {row.kind === "working" ? <WorkingTimelineRow row={row} /> : null}
       {row.kind === "worktree-setup" ? <WorktreeSetupTimelineRow row={row} /> : null}
       {row.kind === "event" ? <V2EventTimelineRow row={row} /> : null}
@@ -2696,6 +2768,45 @@ function ProposedPlanTimelineRow({
   );
 }
 
+function HtmlRenderTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "html-render" }> }) {
+  const ctx = use(TimelineRowCtx);
+
+  return (
+    <div className="min-w-0 px-1">
+      <HtmlRenderFrame
+        // A recycled row must not keep another page's frozen frame.
+        key={row.htmlRender.attachmentId}
+        environmentId={ctx.activeThreadEnvironmentId}
+        htmlRender={row.htmlRender}
+        onOpen={ctx.onFileOpen}
+      />
+    </div>
+  );
+}
+
+function McpAppTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "mcp-app" }> }) {
+  const ctx = use(TimelineRowCtx);
+  const { awaitingUser } = use(TimelineRowActivityCtx);
+
+  return (
+    <div className="min-w-0 px-1">
+      <McpAppFrame
+        // A recycled row must not keep another app's live document.
+        key={row.mcpApp.attachmentId}
+        environmentId={ctx.activeThreadEnvironmentId}
+        threadId={row.sourceThreadId}
+        conversationThreadId={ctx.threadRef?.threadId ?? row.sourceThreadId}
+        itemId={row.itemId}
+        revision={row.revision}
+        app={row.mcpApp}
+        onSendMessage={ctx.onSendAppMessage}
+        awaitingUser={awaitingUser}
+        onFullscreenChange={(fullscreen) => ctx.onAppFullscreenChange(row.id, fullscreen)}
+      />
+    </div>
+  );
+}
+
 type V2EventTone = "muted" | "warning" | "danger" | "success";
 
 function v2EventPresentation(item: OrchestrationV2TurnItem): {
@@ -2784,6 +2895,15 @@ function V2EventTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "event"
   const { item, visibility, sourceThreadId } = row.projectedItem;
   if (item.type === "subagent" && (row.subagents?.length ?? 1) > 1) {
     return <V2SubagentGroup key={row.id} row={row} />;
+  }
+  if (item.type === "secret_request") {
+    return (
+      <SecretRequestCard
+        environmentId={ctx.activeThreadEnvironmentId}
+        item={item}
+        visibility={visibility}
+      />
+    );
   }
   if (isV2LifecycleItem(item)) {
     return (
@@ -2874,6 +2994,7 @@ function V2EventTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "event"
               onOpenThread={ctx.onOpenThread}
               onOpenTurnDiff={ctx.onOpenTurnDiff}
               onRollbackCheckpoint={ctx.onRollbackCheckpoint}
+              onImageExpand={ctx.onImageExpand}
             />
           </div>
         </div>
@@ -2948,6 +3069,7 @@ function V2EventTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "event"
               onOpenThread={ctx.onOpenThread}
               onOpenTurnDiff={ctx.onOpenTurnDiff}
               onRollbackCheckpoint={ctx.onRollbackCheckpoint}
+              onImageExpand={ctx.onImageExpand}
             />
           </div>
         </div>
@@ -3071,7 +3193,7 @@ const V2SubagentGroup = memo(function V2SubagentGroup({
               {statusSummary}
             </span>
           </span>
-          <span className="shrink-0 font-mono text-3xs text-muted-foreground">
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
             <SubagentElapsed agent={subagentGroupTiming(agents)} />
           </span>
           <ChevronDownIcon
@@ -3604,25 +3726,108 @@ function LiveActivityContent({
   );
 }
 
+/** The thread a `t3_thread_read` call targets, titled from live shell state so renames show. */
+function useThreadReadTarget(entry: TimelineWorkEntry, environmentId: EnvironmentId) {
+  const rawThreadId = threadReadTargetId(entry);
+  const threadId = rawThreadId === null ? null : ThreadId.make(rawThreadId);
+  const shell = useThreadShell(threadId ? scopeThreadRef(environmentId, threadId) : null);
+  const title = threadReadTargetTitle(shell);
+  return threadId && title ? { threadId, title } : null;
+}
+
+function threadReadLabel(label: string, target: ReturnType<typeof useThreadReadTarget>) {
+  const prefix = target && threadReadLabelPrefix(label);
+  return prefix ? { ...target, prefix, text: `${prefix} “${target.title}”` } : null;
+}
+
+/** Only settled rows link the title; the live row is itself a button. */
+function ThreadReadLabel({
+  label,
+  environmentId,
+  linked,
+}: {
+  label: NonNullable<ReturnType<typeof threadReadLabel>>;
+  environmentId: EnvironmentId;
+  linked: boolean;
+}) {
+  return (
+    <span className="flex min-w-0">
+      <span className="shrink-0">{label.prefix} “</span>
+      {linked ? (
+        <Link
+          to="/$environmentId/$threadId"
+          params={{ environmentId, threadId: label.threadId }}
+          className="min-w-0 truncate rounded-sm text-foreground underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+          onClick={stopRowToggle}
+          onKeyDown={stopRowToggle}
+        >
+          {label.title}
+        </Link>
+      ) : (
+        <span className="min-w-0 truncate">{label.title}</span>
+      )}
+      <span className="shrink-0">”</span>
+    </span>
+  );
+}
+
 function LiveWorkEntryTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "work-live" }> }) {
   const ctx = use(TimelineRowCtx);
+  const threadTarget = useThreadReadTarget(row.entry, ctx.activeThreadEnvironmentId);
   const questionHeading = row.entry.questionAnswer
     ? getQuestionTextPreview(row.entry.questionAnswer)
     : "";
   const label = questionHeading || liveWorkEntryLabel(row.entry, ctx.workspaceRoot, row.active);
+  const threadLabel = threadReadLabel(label, threadTarget);
+
   const failed = workEntryDisplayIndicatesToolFailure(row.entry);
+  // The expanded group already lists the thought, so the preview steps aside.
+  const thoughtLine = row.thought && !row.expanded ? liveThoughtLine(row.thought.detail ?? "") : "";
+  // While the thought itself streams, the status line just says Thinking.
+  const thoughtIsStatus = thoughtLine !== "" && row.entry === row.thought;
 
   return (
     <button
       type="button"
-      className="group/live-work flex min-h-6 w-full max-w-full cursor-pointer items-center rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
-      aria-label={failed ? `${label}, tool call failed` : undefined}
+      className={cn(
+        "group/live-work flex w-full max-w-full cursor-pointer rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70",
+        thoughtLine ? "flex-col items-start" : "min-h-6 items-center",
+      )}
+      aria-label={
+        failed
+          ? `${thoughtLine ? `${thoughtLine} ` : ""}${threadLabel?.text ?? label}, tool call failed`
+          : undefined
+      }
       aria-expanded={row.expanded}
       onClick={() => ctx.onToggleWorkGroup(row.groupId, row.id)}
     >
+      {thoughtLine ? (
+        // The latest thought's first sentence sits above the status line as an
+        // ordinary work-log row, so a finding never hides behind the next tool call.
+        <WorkLogRow
+          icon={
+            <span className="flex size-4 items-center justify-center text-icon-muted">
+              <ToolActivityIconView
+                icon={undefined}
+                fallbackName="brain"
+                className="block size-4 shrink-0 stroke-2"
+                muted
+              />
+            </span>
+          }
+          label={<span className="line-clamp-4">{thoughtLine}</span>}
+          wrapLabel
+        />
+      ) : null}
       <LiveActivityRow
         label={
-          row.entry.questionAnswer && hasQuestionAnswer(row.entry.questionAnswer) ? (
+          thoughtIsStatus ? (
+            row.active ? (
+              "Thinking"
+            ) : (
+              "Thought"
+            )
+          ) : row.entry.questionAnswer && hasQuestionAnswer(row.entry.questionAnswer) ? (
             <span className="flex min-w-0 gap-1.5">
               <span className="min-w-0 truncate">{label}</span>
               <span className="min-w-0 truncate text-foreground">
@@ -3638,6 +3843,12 @@ function LiveWorkEntryTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "
             >
               {row.entry.detail ?? label}
             </ReactMarkdown>
+          ) : threadLabel ? (
+            <ThreadReadLabel
+              label={threadLabel}
+              environmentId={ctx.activeThreadEnvironmentId}
+              linked={false}
+            />
           ) : (
             label
           )
@@ -4995,6 +5206,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
   const ctx = use(TimelineRowCtx);
   const { threadRef, onImageExpand, timestampFormat } = ctx;
   const { retryableWorkspacePreparationRunIds, onRetryWorkspacePreparation } = ctx;
+  const threadTarget = useThreadReadTarget(workEntry, ctx.activeThreadEnvironmentId);
   const createdThread =
     workEntry.projectedItem?.item.type === "thread_created"
       ? workEntry.projectedItem.item
@@ -5151,10 +5363,25 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
             viewedImage ? viewedImagePath : null,
           )
       : null;
+  // Projected rows expand to the item inspector, so only offer a disclosure
+  // when it has something to show, even if that output still has to load.
+  // Reads and skills still fetch the output the timeline withheld.
+  const plainOutputFetches =
+    plainOutput !== undefined &&
+    workEntry.projectedItem !== undefined &&
+    turnItemNeedsDetailFetch(workEntry.projectedItem.item);
   const canExpandProjectedItem =
     plainOutput !== undefined
-      ? Boolean(plainOutput || viewedImage || workEntry.questionAnswer)
-      : canExpand || workEntry.projectedItem !== undefined;
+      ? Boolean(plainOutput || viewedImage || workEntry.questionAnswer || plainOutputFetches)
+      : workEntry.projectedItem === undefined
+        ? canExpand
+        : isReasoning
+          ? Boolean(workEntry.detail?.trim())
+          : Boolean(
+              viewedImage ||
+              workEntry.questionAnswer ||
+              turnItemHasDetail(workEntry.projectedItem.item),
+            );
   // Reserve destructive row styling for severe failures, not routine tool errors.
   const iconWrapperClass = cn(
     "flex size-4 items-center justify-center",
@@ -5175,7 +5402,10 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
       : workLogEntryIsToolLike(workEntry)
         ? "text-secondary-label"
         : "text-foreground/80";
-  const accessiblePreview = [previewText, answerPreview].filter(Boolean).join(": ");
+  const threadLabel = isReasoning ? null : threadReadLabel(previewText, threadTarget);
+  const accessiblePreview = [threadLabel?.text ?? previewText, answerPreview]
+    .filter(Boolean)
+    .join(": ");
   const accessibleDisplayText = showFailedIndicator
     ? `${accessiblePreview}, tool call failed`
     : accessiblePreview;
@@ -5232,6 +5462,12 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
                 >
                   {workEntry.detail ?? previewText}
                 </ReactMarkdown>
+              ) : threadLabel ? (
+                <ThreadReadLabel
+                  label={threadLabel}
+                  environmentId={ctx.activeThreadEnvironmentId}
+                  linked
+                />
               ) : (
                 previewText
               )}
@@ -5325,7 +5561,9 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
       !isReasoning &&
       !workEntry.questionAnswer &&
       canExpandProjectedItem &&
-      (expandedBody || (workEntry.projectedItem && plainOutput === undefined)) ? (
+      (expandedBody ||
+        plainOutputFetches ||
+        (workEntry.projectedItem && plainOutput === undefined)) ? (
         <WorkLogDetails kind="panel">
           {workEntry.projectedItem && plainOutput === undefined ? (
             <V2ItemInspector
@@ -5336,10 +5574,22 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
               onOpenThread={ctx.onOpenThread}
               onOpenTurnDiff={ctx.onOpenTurnDiff}
               onRollbackCheckpoint={ctx.onRollbackCheckpoint}
+              onImageExpand={ctx.onImageExpand}
             />
-          ) : expandedBody ? (
-            <pre className={toolCallExpandedBodyClassName}>{expandedBody}</pre>
-          ) : null}
+          ) : (
+            <>
+              {expandedBody ? (
+                <pre className={toolCallExpandedBodyClassName}>{expandedBody}</pre>
+              ) : null}
+              {plainOutputFetches && workEntry.projectedItem ? (
+                <FetchedToolOutput
+                  projectedItem={workEntry.projectedItem}
+                  environmentId={ctx.activeThreadEnvironmentId}
+                  onImageExpand={onImageExpand}
+                />
+              ) : null}
+            </>
+          )}
         </WorkLogDetails>
       ) : null}
     </WorkLogRow>

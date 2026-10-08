@@ -17,7 +17,7 @@ import type {
   UsageCostEstimate,
   UsageCostEstimateInput,
 } from "@t3tools/contracts";
-import { AsyncResult } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/reactivity";
 import { useEffect, useMemo, useState } from "react";
 
 import { mobilePreferencesAtom } from "../../state/preferences";
