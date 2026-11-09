@@ -490,6 +490,24 @@ export function remainingPercent(window: ServerProviderUsageWindow): number {
   return Math.round(100 - Math.max(0, Math.min(100, window.usedPercent)));
 }
 
+/**
+ * `$42.50`: an amount in the currency's own precision. A currency code Intl
+ * does not know falls back to `42.50 USD`.
+ */
+export function formatMoney(amount: number, currency: string, fractionDigits = 2): string {
+  const digits = Math.min(fractionDigits, 20);
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(amount);
+  } catch {
+    return `${amount.toFixed(digits)} ${currency}`;
+  }
+}
+
 function resetMillis(window: ServerProviderUsageWindow): number | null {
   if (window.resetsAt === undefined) return null;
   const at = Date.parse(window.resetsAt);
