@@ -79,6 +79,19 @@ describe("collectThreadCostInputs", () => {
     ]);
   });
 
+  it("estimates a turn reported as free when it used tokens", () => {
+    const inputs = collectThreadCostInputs(
+      projection([
+        { node: "node-claude", reportedCostUsd: 0, usage: usage(100, 20) },
+        { node: "node-claude", reportedCostUsd: 0 },
+      ]),
+    );
+    // The CLI could not price the model, so the server estimates it.
+    expect(inputs.estimateEntries.map((entry) => entry.model)).toEqual(["claude-sonnet-4-6"]);
+    // A $0 turn with no tokens really was free.
+    expect(inputs.reportedTurns).toBe(1);
+  });
+
   it("skips turns with no usage or no known model", () => {
     const inputs = collectThreadCostInputs(
       projection([

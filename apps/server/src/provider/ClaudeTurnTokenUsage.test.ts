@@ -3,6 +3,7 @@ import { describe, expect, it } from "@effect/vitest";
 import {
   claudeTurnReportedCost,
   initialClaudeReportedCost,
+  resumedClaudeReportedCost,
   type ClaudeReportedCostState,
 } from "./ClaudeTurnTokenUsage.ts";
 
@@ -34,14 +35,21 @@ describe("claudeTurnReportedCost", () => {
     expect(turns.reduce((sum, turn) => sum! + turn!, 0)).toBeCloseTo(1.4);
   });
 
-  it("counts a resumed process from zero, since its total starts fresh", () => {
+  it("lets a resumed process's first total set the baseline, since it includes earlier spend", () => {
     const first = shares([{ uuid: "a", total_cost_usd: 2 }]);
-    // A new CLI process gets a new state, as the adapter keeps one per query.
-    const resumed = shares([
-      { uuid: "b", total_cost_usd: 0.3 },
-      { uuid: "c", total_cost_usd: 0.5 },
-    ]);
-    expect([...first, ...resumed].reduce((sum, turn) => sum! + turn!, 0)).toBeCloseTo(2.5);
+    // A resumed CLI process reports the session's earlier spend in its first total.
+    const resumed = shares(
+      [
+        { uuid: "b", total_cost_usd: 2.3 },
+        { uuid: "b", total_cost_usd: 2.3 },
+        { uuid: "c", total_cost_usd: 2.5 },
+      ],
+      resumedClaudeReportedCost,
+    );
+    expect(resumed[0]).toBeUndefined();
+    expect(resumed[1]).toBeUndefined();
+    expect(resumed[2]).toBeCloseTo(0.2);
+    expect([...first, ...resumed].reduce((sum, turn) => sum! + (turn ?? 0), 0)).toBeCloseTo(2.2);
   });
 
   it("treats a lower total in the same process as a reset (/clear)", () => {
