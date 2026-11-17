@@ -1121,7 +1121,7 @@ export function createServerEnvironmentAtoms<R, E>(
           ),
         ),
     }),
-    estimateUsageCost: createEnvironmentRpcCommand(runtime, {
+    estimateUsageCost: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:server:estimate-usage-cost",
       tag: WS_METHODS.serverEstimateUsageCost,
     }),

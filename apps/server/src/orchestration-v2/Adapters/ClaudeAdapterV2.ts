@@ -11,6 +11,7 @@ import {
   claudeTurnReportedCost,
   initialClaudeReportedCost,
   normalizeClaudeTurnTokenUsage,
+  resumedClaudeReportedCost,
   type ClaudeReportedCostState,
 } from "../../provider/ClaudeTurnTokenUsage.ts";
 import {
@@ -7025,7 +7026,7 @@ export function makeClaudeAdapterV2(
             openedPermissionMode: queryOptions.permissionMode,
             permissionMode: queryOptions.permissionMode,
             stopping: false,
-            reportedCost: initialClaudeReportedCost,
+            reportedCost: shouldResume ? resumedClaudeReportedCost : initialClaudeReportedCost,
             subagentsFromEarlierProcesses: new Set(
               [...(yield* Ref.get(sessionSubagentsByTaskId)).values()].filter(
                 (subagent) => subagent.task.status === "running",

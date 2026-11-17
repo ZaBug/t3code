@@ -87,15 +87,14 @@ export function normalizeClaudeTurnTokenUsage(
 }
 
 /**
- * The running cost one Claude CLI process has reported. `total_cost_usd` on
- * each result is cumulative for the process's query, starts fresh when a
- * session is resumed in a new process, and drops back on `/clear` or a crash
- * result carrying zeroes. One state per process, never shared.
+ * One Claude CLI process's running `total_cost_usd`, cumulative per session: a resumed
+ * process's first total includes earlier spend, and `/clear` drops it. One state per
+ * process. `totalUsd` stays null until a resumed process's first result sets it.
  */
 export interface ClaudeReportedCostState {
-  readonly totalUsd: number;
+  readonly totalUsd: number | null;
   readonly lastResultUuid: string | null;
-  readonly lastTurnCostUsd: number;
+  readonly lastTurnCostUsd: number | undefined;
 }
 
 export const initialClaudeReportedCost: ClaudeReportedCostState = {
@@ -104,10 +103,16 @@ export const initialClaudeReportedCost: ClaudeReportedCostState = {
   lastTurnCostUsd: 0,
 };
 
+/** A process that resumed a session: its first total includes spend already counted. */
+export const resumedClaudeReportedCost: ClaudeReportedCostState = {
+  ...initialClaudeReportedCost,
+  totalUsd: null,
+};
+
 /**
- * One result's share of the running total: the increase since the previous
- * result, or the whole total when it went down (a reset). The same result
- * seen twice keeps its first share, so a replayed result cannot zero a turn.
+ * One result's share: the increase since the last result, or the whole total after a
+ * drop (a reset). A resumed process's first result has no share, so its turn is
+ * estimated from tokens. A replayed result keeps its first share.
  */
 export function claudeTurnReportedCost(
   state: ClaudeReportedCostState,
@@ -120,7 +125,8 @@ export function claudeTurnReportedCost(
   if (typeof total !== "number" || !Number.isFinite(total) || total < 0) {
     return { state, turnCostUsd: undefined };
   }
-  const turnCostUsd = total >= state.totalUsd ? total - state.totalUsd : total;
+  const turnCostUsd =
+    state.totalUsd === null ? undefined : total >= state.totalUsd ? total - state.totalUsd : total;
   return {
     state: { totalUsd: total, lastResultUuid: result.uuid, lastTurnCostUsd: turnCostUsd },
     turnCostUsd,

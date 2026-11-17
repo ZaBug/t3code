@@ -35,14 +35,17 @@ export function collectThreadCostInputs(
   const reportedDrivers = new Set<ProviderDriverKind>();
   const totalsByModel = new Map<string, UsageCostEstimateInput["entries"][number]["totals"]>();
   for (const turn of projection.providerTurns) {
-    if (turn.reportedCostUsd !== undefined) {
+    const usage = turn.turnTokenUsage;
+    // A CLI that cannot price a gateway model reports $0; estimate those turns instead.
+    const reportedFree =
+      turn.reportedCostUsd === 0 && (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0) > 0;
+    if (turn.reportedCostUsd !== undefined && !reportedFree) {
       reportedUsd += turn.reportedCostUsd;
       reportedTurns += 1;
       const driver = threadDriver.get(turn.providerThreadId);
       if (driver !== undefined) reportedDrivers.add(driver);
       continue;
     }
-    const usage = turn.turnTokenUsage;
     if (
       usage === undefined ||
       usage.inputTokens === undefined ||

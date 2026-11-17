@@ -1,67 +1,53 @@
-import type { EnvironmentId, UsageCostEstimate, UsageCostEstimateInput } from "@t3tools/contracts";
-import { useEffect, useMemo, useState } from "react";
+import type { EnvironmentId, ThreadId, UsageCostEstimate } from "@t3tools/contracts";
+import { useState } from "react";
 
 import {
   collectThreadCostInputs,
   combineThreadCost,
   type ThreadCost,
-  type ThreadCostInputs,
 } from "@t3tools/client-runtime/thread-cost";
+import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
-import { useAtomCommand } from "../../state/use-atom-command";
 
 /**
- * The open thread's cost: provider-reported turns summed on the client, the
- * rest priced by the server. The estimate is requested again only when the
- * unreported token totals change, which happens once per finished turn.
+ * The open thread's cost: provider-reported turns summed here, the rest priced
+ * by the server once per change in their token totals. While a new estimate
+ * loads, the last one for the same thread stays so the figure never vanishes.
  */
 export function useThreadCost(input: {
   readonly environmentId: EnvironmentId | null;
+  readonly threadId: ThreadId | null;
   readonly projection: Parameters<typeof collectThreadCostInputs>[0] | null;
   readonly enabled: boolean;
 }): ThreadCost | null {
-  const estimateCost = useAtomCommand(serverEnvironment.estimateUsageCost, {
-    reportFailure: false,
-  });
-  // Keyed on the arrays it reads, which keep their identity while text streams.
-  const providerTurns = input.projection?.providerTurns;
-  const providerThreads = input.projection?.providerThreads;
-  const nodes = input.projection?.nodes;
-  const runs = input.projection?.runs;
-  const inputs = useMemo<ThreadCostInputs | null>(
-    () =>
-      input.enabled && providerTurns && providerThreads && nodes && runs
-        ? collectThreadCostInputs({ providerTurns, providerThreads, nodes, runs })
-        : null,
-    [input.enabled, providerTurns, providerThreads, nodes, runs],
-  );
-  const entriesKey = inputs ? JSON.stringify(inputs.estimateEntries) : null;
-  const [estimate, setEstimate] = useState<{
-    readonly key: string;
+  // Read the arrays, which keep their identity while text streams, so this reruns per turn.
+  const { providerTurns, providerThreads, nodes, runs } = input.projection ?? {};
+  const inputs =
+    input.enabled && providerTurns && providerThreads && nodes && runs
+      ? collectThreadCostInputs({ providerTurns, providerThreads, nodes, runs })
+      : null;
+  const scope =
+    input.environmentId === null || input.threadId === null
+      ? null
+      : `${input.environmentId}:${input.threadId}`;
+  const entries = inputs?.estimateEntries ?? [];
+  const current = useEnvironmentQuery(
+    input.environmentId === null || entries.length === 0
+      ? null
+      : serverEnvironment.estimateUsageCost({
+          environmentId: input.environmentId,
+          input: { entries },
+        }),
+  ).data;
+
+  // Remembered from earlier renders, the React way to keep a previous value.
+  const [last, setLast] = useState<{
+    readonly scope: string;
     readonly value: UsageCostEstimate;
   } | null>(null);
-
-  useEffect(() => {
-    if (entriesKey === null || input.environmentId === null) return;
-    // The key is the entries themselves, so the effect re-runs only when they change.
-    const entries = JSON.parse(entriesKey) as UsageCostEstimateInput["entries"];
-    if (entries.length === 0) return;
-    let cancelled = false;
-    void estimateCost({ environmentId: input.environmentId, input: { entries } }).then((result) => {
-      if (!cancelled && result._tag === "Success") {
-        setEstimate({ key: entriesKey, value: result.value });
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [entriesKey, input.environmentId, estimateCost]);
-
-  return useMemo(
-    () =>
-      inputs
-        ? combineThreadCost(inputs, estimate?.key === entriesKey ? estimate.value : null)
-        : null,
-    [entriesKey, estimate, inputs],
-  );
+  if (current !== null && scope !== null && (last?.scope !== scope || last.value !== current)) {
+    setLast({ scope, value: current });
+  }
+  const estimate = current ?? (last !== null && last.scope === scope ? last.value : null);
+  return inputs ? combineThreadCost(inputs, estimate) : null;
 }
