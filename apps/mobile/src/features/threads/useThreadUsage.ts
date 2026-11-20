@@ -15,14 +15,13 @@ import type {
   OrchestrationV2ThreadProjection,
   ThreadId,
   UsageCostEstimate,
-  UsageCostEstimateInput,
 } from "@t3tools/contracts";
 import { AsyncResult } from "effect/reactivity";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { mobilePreferencesAtom } from "../../state/preferences";
+import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
-import { useAtomCommand } from "../../state/use-atom-command";
 import { useThreadVisibleTurnItems } from "../../state/use-thread-detail";
 
 export interface ThreadUsage {
@@ -51,9 +50,6 @@ export function useThreadUsage(input: {
   const visibleTurnItems = useThreadVisibleTurnItems({
     environmentId: input.environmentId,
     threadId: input.threadId,
-  });
-  const estimateCost = useAtomCommand(serverEnvironment.estimateUsageCost, {
-    reportFailure: false,
   });
   // Keyed on the arrays they read, which keep their identity while text streams.
   const providerTurns = input.projection?.providerTurns;
@@ -85,35 +81,30 @@ export function useThreadUsage(input: {
         : null,
     [showCost, providerTurns, providerThreads, nodes, runs],
   );
-  const entriesKey = inputs ? JSON.stringify(inputs.estimateEntries) : null;
-  const [estimate, setEstimate] = useState<{
-    readonly key: string;
+  const scope =
+    input.environmentId === null || input.threadId === null
+      ? null
+      : `${input.environmentId}:${input.threadId}`;
+  const entries = inputs?.estimateEntries ?? [];
+  const current = useEnvironmentQuery(
+    input.environmentId === null || entries.length === 0
+      ? null
+      : serverEnvironment.estimateUsageCost({
+          environmentId: input.environmentId,
+          input: { entries },
+        }),
+  ).data;
+  // Remembered from earlier renders: while a new estimate loads, the last one
+  // for the same thread stays so the figure never vanishes.
+  const [last, setLast] = useState<{
+    readonly scope: string;
     readonly value: UsageCostEstimate;
   } | null>(null);
-
-  useEffect(() => {
-    if (entriesKey === null || input.environmentId === null) return;
-    // The key is the entries themselves, so the effect re-runs only when they change.
-    const entries = JSON.parse(entriesKey) as UsageCostEstimateInput["entries"];
-    if (entries.length === 0) return;
-    let cancelled = false;
-    void estimateCost({ environmentId: input.environmentId, input: { entries } }).then((result) => {
-      if (!cancelled && result._tag === "Success") {
-        setEstimate({ key: entriesKey, value: result.value });
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [entriesKey, input.environmentId, estimateCost]);
-
-  const cost = useMemo(
-    () =>
-      inputs
-        ? combineThreadCost(inputs, estimate?.key === entriesKey ? estimate.value : null)
-        : null,
-    [entriesKey, estimate, inputs],
-  );
+  if (current !== null && scope !== null && (last?.scope !== scope || last.value !== current)) {
+    setLast({ scope, value: current });
+  }
+  const estimate = current ?? (last !== null && last.scope === scope ? last.value : null);
+  const cost = inputs ? combineThreadCost(inputs, estimate) : null;
   const usageLimitSources = config?.usageLimitSources;
   const budget = useMemo(
     () => (showCost && usageLimitSources ? threadBudget(usageLimitSources) : null),

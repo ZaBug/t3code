@@ -3635,6 +3635,7 @@ export default function ChatView(props: ChatViewProps) {
   );
   const activeThreadCost = useThreadCost({
     environmentId: activeThreadRef?.environmentId ?? null,
+    threadId: activeThreadRef?.threadId ?? null,
     projection: serverProjection,
     enabled: threadCostVisible,
   });
